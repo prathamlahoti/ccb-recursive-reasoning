@@ -1,0 +1,3 @@
+# The imported official CCB records are SHA-256 pinned. Preserve their exact
+# upstream bytes across Windows, WSL, GitHub, and Kaggle clones.
+data/ccb_official/*.json -text
