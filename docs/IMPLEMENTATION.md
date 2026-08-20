@@ -129,8 +129,10 @@ To transfer as a private Kaggle Dataset:
    `tmp`, caches, or previous checkpoints.
 2. On Kaggle, create a private Dataset from the ZIP.
 3. Create a new Notebook, add that Dataset as an input, enable Internet, and
-   select a GPU accelerator. A single P100 is preferable to T4 x2 because the
-   current runner intentionally uses one GPU.
+   select a GPU accelerator. Use a Tesla T4 in the current Kaggle image: its
+   PyTorch 2.10.0+cu128 build cannot execute kernels on Kaggle's P100
+   (`cudaErrorNoKernelImageForDevice`). The runner intentionally uses one GPU,
+   even if Kaggle displays a T4 x2 allocation.
 4. Locate and copy the read-only input project into `/kaggle/working`:
 
 ```python
@@ -255,6 +257,25 @@ is not yet a scientific comparison or evidence that TRM/STRM improves over the
 baseline.  The next evidence-producing jobs are the same budgeted pilot for
 TRM, DIS-TRM, and STRM, followed by multi-seed repeats after a pilot comparison
 shows a signal.
+
+## Recorded D1 vanilla-TRM pilot
+
+The matching D1 vanilla-TRM pilot completed on 2026-08-20 using the same seed,
+width (64), loops (4), batch size (64), and 1,000-step budget. It used a Tesla
+T4, contained 123,657 parameters, ran in 106.920 seconds, and peaked at
+0.428 GiB CUDA allocation. The final training loss was 1.16457; the result
+artifact is `ccb_result_v1`, run hash `99840ca8583d`, and did not use official
+evaluation.
+
+This pilot **does not demonstrate depth generalization**: validation final
+exact accuracy was 8.4% (42/500), while generated test-depth (25--50) and
+test-strong (60/80/100) final exact accuracy were both 0.0%. Its mean first
+divergence was about 2.84 transitions and its extrapolation depth-AUC was 0.
+That is a useful negative control at this tiny training budget, not a verdict
+on TRM. It means we must not claim a SOTA result or advance to D2 based on it.
+The appropriate next compute gate is a matched DIS-TRM and STRM D1 pilot,
+followed only by a longer, validation-selected and multi-seed D1 experiment if
+one produces a clear depth/horizon improvement.
 
 Repeat step 6 with `trm`, `dis_trm`, and `strm`, then repeat those four jobs for
 D2. D3 should use `batch_size: 16` initially. Do not enable official evaluation
