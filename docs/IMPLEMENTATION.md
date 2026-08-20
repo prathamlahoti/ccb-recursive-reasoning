@@ -295,6 +295,22 @@ model to improve both in-distribution validation and held-out depth/horizon
 measures over the matched Transformer and vanilla TRM. Only then should that
 model receive a longer three-seed D1 run.
 
+## Lost-output incident: 2026-08-21 D1 scale-finding attempt
+
+A one-seed D1 comparison of Transformer, TRM, DIS-TRM, and STRM at 10,000
+steps completed in a private Kaggle draft session on a Tesla T4. The notebook
+reported 6,597.189 seconds of measured workload time and 9.718 GiB peak CUDA
+allocation, with official evaluation disabled for all four models. However,
+the notebook printed only those aggregate runtime fields; its per-model
+`result.json` artifacts remained solely under `/kaggle/working` and were gone
+after the Kaggle session reset. Consequently, no accuracy, horizon, or model
+comparison can be recovered from this attempt and it must not be cited as an
+experimental result. The GPU was released after the audit.
+
+All future Kaggle runs must copy `runs/`, the resolved configuration, and a
+compact metrics JSON to a notebook output bundle before ending the session, and
+use **Save Version** so those output artifacts persist.
+
 Do not enable official evaluation until model selection and hyperparameters are
 frozen. Do not advance to D2 or D3 until the D1 scale-finding result identifies
 a model with credible held-out-depth signal.
