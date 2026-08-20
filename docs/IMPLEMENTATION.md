@@ -115,8 +115,14 @@ stored as source are the pinned official fixed records under
 
 ## Kaggle free-GPU execution runbook
 
-The local repository currently has no Git remote or committed revision.
-Until it is pushed to GitHub, transfer it as a private Kaggle Dataset:
+The pinned source repository is private:
+`https://github.com/prathamlahoti/ccb-recursive-reasoning` on branch `master`.
+For Kaggle, the private Dataset route below is preferred because it avoids
+placing a GitHub credential in the notebook. If cloning instead, use a
+read-only fine-grained GitHub token stored as a Kaggle Secret; never paste a
+token into notebook source or output.
+
+To transfer as a private Kaggle Dataset:
 
 1. Create a clean ZIP containing `.gitignore`, `README.md`, `pyproject.toml`,
    `src`, `tests`, `docs`, `paper`, and `data`. Do not include `.git`, `runs`,
