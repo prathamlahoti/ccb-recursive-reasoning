@@ -55,6 +55,7 @@ Run a reproducible experiment matrix from a JSON configuration:
   "layers_or_loops": 4,
   "steps": 1000,
   "batch_size": 32,
+  "checkpoint_interval_steps": 500,
   "include_official_evaluation": false,
   "device": "cpu"
 }

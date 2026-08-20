@@ -9,10 +9,13 @@ from ccb.encoding import collate_episodes
 from ccb.results import markdown_table, write_result
 from ccb.training import (
     TrainConfig,
+    build_optimizer,
     build_model,
     evaluate_batch,
+    load_checkpoint,
     save_checkpoint,
     seed_everything,
+    train_batches,
     train_fixed_batch,
 )
 
@@ -43,6 +46,48 @@ class TrainingTests(unittest.TestCase):
             payload = torch.load(path, weights_only=False)
             self.assertEqual(payload["schema"], "ccb_checkpoint_v1")
             self.assertEqual(payload["step"], 20)
+
+    def test_resumed_batches_match_uninterrupted_training(self) -> None:
+        domain = AlienGridDomain()
+        batch = collate_episodes([domain.generate(depth=2, seed=seed) for seed in range(4)])
+        full_config = TrainConfig(
+            model="gru", width=16, layers_or_loops=1, learning_rate=0.01, steps=6, seed=7
+        )
+        partial_config = TrainConfig(
+            model="gru", width=16, layers_or_loops=1, learning_rate=0.01, steps=3, seed=7
+        )
+
+        seed_everything(7)
+        uninterrupted = build_model(full_config, batch.codec)
+        train_batches(uninterrupted, [batch] * 6, full_config)
+
+        seed_everything(7)
+        interrupted = build_model(partial_config, batch.codec)
+        optimizer, _ = train_batches(interrupted, [batch] * 3, partial_config)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "checkpoint.pt"
+            save_checkpoint(
+                path,
+                model=interrupted,
+                optimizer=optimizer,
+                config=partial_config,
+                codec=batch.codec,
+                step=3,
+            )
+            resumed = build_model(full_config, batch.codec)
+            resumed_optimizer = build_optimizer(resumed, full_config)
+            self.assertEqual(
+                load_checkpoint(path, model=resumed, optimizer=resumed_optimizer), 3
+            )
+            train_batches(
+                resumed,
+                [batch] * 6,
+                full_config,
+                optimizer=resumed_optimizer,
+                start_step=3,
+            )
+        for left, right in zip(uninterrupted.parameters(), resumed.parameters()):
+            self.assertTrue(torch.equal(left, right))
 
 
 class ResultTests(unittest.TestCase):

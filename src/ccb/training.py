@@ -4,6 +4,7 @@ import json
 import os
 import random
 from dataclasses import asdict, dataclass
+from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
@@ -42,6 +43,12 @@ def seed_everything(seed: int) -> None:
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def build_optimizer(model: nn.Module, config: TrainConfig) -> torch.optim.Optimizer:
+    return torch.optim.AdamW(
+        model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
+    )
 
 
 def build_model(config: TrainConfig, codec: DomainCodec) -> nn.Module:
@@ -185,9 +192,7 @@ def train_fixed_batch(
     *,
     log_callback: Callable[[Mapping[str, Any]], None] | None = None,
 ) -> tuple[torch.optim.Optimizer, list[dict[str, Any]]]:
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
-    )
+    optimizer = build_optimizer(model, config)
     history: list[dict[str, Any]] = []
     for step in range(1, config.steps + 1):
         model.train()
@@ -220,15 +225,19 @@ def train_batches(
     *,
     device: torch.device | str = "cpu",
     log_callback: Callable[[Mapping[str, Any]], None] | None = None,
+    optimizer: torch.optim.Optimizer | None = None,
+    start_step: int = 0,
+    checkpoint_callback: Callable[[int, nn.Module, torch.optim.Optimizer], None] | None = None,
 ) -> tuple[torch.optim.Optimizer, list[dict[str, Any]]]:
-    """Train for at most config.steps over one deterministic batch stream."""
+    """Train through ``config.steps``, optionally resuming a deterministic stream."""
 
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
-    )
+    if start_step < 0 or start_step > config.steps:
+        raise ValueError("start_step must be within [0, config.steps]")
+    if optimizer is None:
+        optimizer = build_optimizer(model, config)
     history: list[dict[str, Any]] = []
     model.to(device)
-    for step, original_batch in enumerate(batches, start=1):
+    for step, original_batch in enumerate(islice(batches, start_step, None), start=start_step + 1):
         if step > config.steps:
             break
         batch = original_batch.to(device)
@@ -254,9 +263,11 @@ def train_batches(
         history.append(record)
         if log_callback is not None:
             log_callback(record)
-    if len(history) < config.steps:
+        if checkpoint_callback is not None:
+            checkpoint_callback(step, model, optimizer)
+    if start_step + len(history) < config.steps:
         raise ValueError(
-            f"batch stream ended after {len(history)} steps; expected {config.steps}"
+            f"batch stream ended after {start_step + len(history)} steps; expected {config.steps}"
         )
     return optimizer, history
 
@@ -291,7 +302,33 @@ def save_checkpoint(
             "model_state": model.state_dict(),
             "optimizer_state": optimizer.state_dict(),
             "torch_rng_state": torch.get_rng_state(),
+            "cuda_rng_states": torch.cuda.get_rng_state_all()
+            if torch.cuda.is_available()
+            else None,
+            "python_random_state": random.getstate(),
         },
         temporary,
     )
     os.replace(temporary, path)
+
+
+def load_checkpoint(
+    path: Path,
+    *,
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device | str = "cpu",
+) -> int:
+    """Restore model, optimizer, and RNG state; return the completed step."""
+
+    payload = torch.load(path, map_location=device, weights_only=False)
+    if payload.get("schema") != "ccb_checkpoint_v1":
+        raise ValueError(f"unsupported checkpoint schema in {path}")
+    model.load_state_dict(payload["model_state"])
+    optimizer.load_state_dict(payload["optimizer_state"])
+    torch.set_rng_state(payload["torch_rng_state"])
+    if torch.cuda.is_available() and payload.get("cuda_rng_states") is not None:
+        torch.cuda.set_rng_state_all(payload["cuda_rng_states"])
+    if payload.get("python_random_state") is not None:
+        random.setstate(payload["python_random_state"])
+    return int(payload["step"])

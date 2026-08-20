@@ -277,8 +277,24 @@ The appropriate next compute gate is a matched DIS-TRM and STRM D1 pilot,
 followed only by a longer, validation-selected and multi-seed D1 experiment if
 one produces a clear depth/horizon improvement.
 
-Repeat step 6 with `trm`, `dis_trm`, and `strm`, then repeat those four jobs for
-D2. D3 should use `batch_size: 16` initially. Do not enable official evaluation
-until model selection and hyperparameters are frozen. The current launcher
-skips completed runs but checkpoints only after a model finishes; therefore a
-first pilot should not combine several unmeasured models into one 12-hour job.
+## Scaled-run readiness gate
+
+The launcher now writes atomic periodic checkpoints and can resume exactly from
+them: model parameters, optimizer, Python RNG, CPU Torch RNG, and CUDA RNG are
+restored; the deterministic batch stream skips precisely the already-completed
+updates. A CPU test confirms that an interrupted three-step run resumed to six
+steps produces bit-identical parameters to an uninterrupted six-step run.
+
+`configs/d1-scale-finding-seed0.json` is the next approved-scale configuration:
+the four matched D1 model families (Transformer, vanilla TRM, DIS-TRM, STRM),
+one prespecified seed, width 64, four layers/loops, 10,000 updates, and an
+atomic checkpoint every 500 updates. It remains a **scale-finding** experiment,
+not a final paper run: test-depth and test-strong are reported for all models,
+not used to tune one after observing the results. A clear result requires a
+model to improve both in-distribution validation and held-out depth/horizon
+measures over the matched Transformer and vanilla TRM. Only then should that
+model receive a longer three-seed D1 run.
+
+Do not enable official evaluation until model selection and hyperparameters are
+frozen. Do not advance to D2 or D3 until the D1 scale-finding result identifies
+a model with credible held-out-depth signal.

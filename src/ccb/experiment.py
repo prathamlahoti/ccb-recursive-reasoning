@@ -23,8 +23,10 @@ from ccb.results import write_result
 from ccb.serialization import stable_hash
 from ccb.training import (
     TrainConfig,
+    build_optimizer,
     build_model,
     jsonl_logger,
+    load_checkpoint,
     save_checkpoint,
     seed_everything,
     train_batches,
@@ -47,6 +49,7 @@ class ExperimentConfig:
     include_official_evaluation: bool = False
     bootstrap_resamples: int = 2_000
     device: str = "cpu"
+    checkpoint_interval_steps: int = 0
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "ExperimentConfig":
@@ -219,12 +222,42 @@ def run_experiment_matrix(
         )
         seed_everything(seed)
         model = build_model(train_config, codec)
+        checkpoint_path = run_directory / "checkpoint.pt"
+        optimizer = build_optimizer(model, train_config)
+        start_step = 0
+        if checkpoint_path.exists():
+            start_step = load_checkpoint(
+                checkpoint_path, model=model, optimizer=optimizer, device=config.device
+            )
+
+        def checkpoint_if_due(
+            step: int,
+            current_model: torch.nn.Module,
+            current_optimizer: torch.optim.Optimizer,
+        ) -> None:
+            if (
+                config.checkpoint_interval_steps > 0
+                and step < config.steps
+                and step % config.checkpoint_interval_steps == 0
+            ):
+                save_checkpoint(
+                    checkpoint_path,
+                    model=current_model,
+                    optimizer=current_optimizer,
+                    config=train_config,
+                    codec=codec,
+                    step=step,
+                )
+
         optimizer, history = train_batches(
             model,
             _batch_stream(splits["train"], config, seed),
             train_config,
             device=config.device,
             log_callback=jsonl_logger(run_directory / "train.jsonl"),
+            optimizer=optimizer,
+            start_step=start_step,
+            checkpoint_callback=checkpoint_if_due,
         )
         evaluations = {}
         for split_name in ("validation", "test_depth", "test_strong"):
@@ -255,7 +288,7 @@ def run_experiment_matrix(
             "model": model_name,
             "seed": seed,
             "parameters": trainable_parameters(model),
-            "training_steps": len(history),
+            "training_steps": config.steps,
             "last_training_loss": history[-1]["loss"],
             "evaluations": evaluations,
             "environment": _environment(),
