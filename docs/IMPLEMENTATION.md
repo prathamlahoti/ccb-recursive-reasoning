@@ -239,6 +239,23 @@ as a smoke test. Then change it to `steps: 1000` and use **Save & Run All** so
 the full job runs once from a clean environment and its outputs persist; do not
 run the 1,000-step job interactively and then rerun it during version saving.
 
+## Recorded CUDA viability gate
+
+On 2026-08-20, the private Kaggle notebook `CCB D1 Transformer GPU Pilot`
+completed the bounded D1 direct-Transformer pilot on a Tesla T4.  The source
+was the pinned project commit `54bd91d`; the notebook first verified all 1,200
+official records exactly (400/400 in each of D1, D2, and D3).  Training used
+one seed, width 64, four layers, batch size 64, and 1,000 steps.  It completed
+in 25.125 seconds with a peak CUDA allocation of 0.110 GiB.  Official
+evaluation was disabled (`official_evaluation_used: false`).
+
+This is a technical viability result only: the CUDA path, dataset mount,
+official-record firewall, and bounded training pipeline work end-to-end.  It
+is not yet a scientific comparison or evidence that TRM/STRM improves over the
+baseline.  The next evidence-producing jobs are the same budgeted pilot for
+TRM, DIS-TRM, and STRM, followed by multi-seed repeats after a pilot comparison
+shows a signal.
+
 Repeat step 6 with `trm`, `dis_trm`, and `strm`, then repeat those four jobs for
 D2. D3 should use `batch_size: 16` initially. Do not enable official evaluation
 until model selection and hyperparameters are frozen. The current launcher
