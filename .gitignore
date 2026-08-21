@@ -9,3 +9,6 @@ checkpoints/
 runs/
 tmp/
 .research-tmp/
+paper/*.aux
+paper/*.log
+paper/*.out

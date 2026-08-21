@@ -134,3 +134,145 @@ The free-tier sequence is:
 If each pilot finishes comfortably within one session, some three-seed pilot
 runs can also use the free tier. Final claims should use consistent dedicated
 hardware so runtime and compute comparisons are meaningful.
+
+## Novelty audit (August 2026)
+
+### What is already established
+
+The broad ingredients in this project are not new in isolation:
+
+- TRM uses a small weight-shared recursive network for reasoning
+  ([Jolicoeur-Martineau, 2025](https://arxiv.org/abs/2510.04871)).
+- Looped, weight-shared Transformer computation has already been studied for
+  length generalization
+  ([Giannou et al., 2024](https://arxiv.org/abs/2409.15647)).
+- Persistent fast/slow latent recurrence, including carrying latent state across
+  observations and performing several shared inner updates, is already directly
+  studied for train-short/test-long generalization
+  ([Fast-Slow Latent Recurrence, 2026](https://arxiv.org/abs/2604.01577)).
+
+Therefore we must **not** claim that STRM is the first recurrent or
+persistent-latent architecture, nor that weight sharing or iterative reasoning
+is new.
+
+### Plausible contribution, conditional on experiments
+
+The potentially publishable unit is a controlled study of stateful recurrence
+for *compositional state-transition reasoning*:
+
+1. a leakage-audited CCB-Learn implementation with exact official-record
+   compatibility and depth/structural holdouts;
+2. trace-level evaluation (full answer exactness, transition accuracy,
+   retention probability, and inferred reasoning horizon), rather than only a
+   final task score;
+3. a matched comparison among direct Transformer, vanilla TRM,
+   intermediate-supervised recurrence, fast/slow recurrence, and STRM;
+4. evidence that an explicitly decoded persistent answer state plus a latent
+   state improves extrapolation on CCB, including on D2 and D3.
+
+This is a hypothesis, not a completed novelty claim. We have not yet
+established that no prior paper evaluated an equivalent stateful recurrence on
+CCB, and a systematic related-work and repository audit is required before
+using words such as “first”.
+
+### Current evidence and its limit
+
+The single-seed D1 scale run is a feasibility signal: STRM achieved 5.17%
+final exact accuracy on held-out depth 25--50, versus 0% for the direct
+Transformer and vanilla TRM, while the strong-depth 60--100 split remained
+0%. It does not establish a stable result, SOTA, or a paper contribution. The
+three-seed D1 confirmation, matched-compute ablations, structural holdout,
+D2/D3, and comparison with the closest published fast/slow formulation remain
+necessary.
+
+### Seed-stability interpretation
+
+The primary CCB-Learn train, validation, depth, and strong-depth splits are
+built once before the model-by-seed loop, so all training seeds are evaluated
+on the same deterministic instances. A difference between seeds therefore
+reflects optimisation randomness (initial weights and minibatch order), not a
+different held-out test set. Full-trajectory exactness compounds local errors:
+a model can have useful transition accuracy but receive zero final exact credit
+after one early wrong transition. Consequently, seed stability must be reported
+using all seeds and confidence intervals; a single unusually high STRM seed is
+not evidence of a reliable extrapolation gain.
+
+### STRM seed-2 anomaly: current evidence and audit protocol
+
+The D1 STRM seed-2 record reports 99.17% final exact accuracy on depths
+25--50 and 92.33% on depths 60--100, whereas seeds 0 and 1 report 5.17% and
+0.83% respectively. This is an anomaly to audit, not a result to claim.
+
+Static code inspection establishes two useful safeguards:
+
+1. The primary splits are built once before the model-by-seed loop, so the
+   generated suites and manifest are independent of the optimization seed.
+2. The STRM forward pass consumes only initial state and operations; targets
+   are used only after the forward pass by the supervised loss and evaluator.
+
+These checks rule out the most direct train/test or target-input leakage path,
+but they do not establish that a new training run will reproduce the outcome.
+The persisted-artifact audit did pass: all 12 result records and 12 matching
+checkpoints exist under one manifest hash,
+e5437b07e6aaa10d19b5c211e97ab0dcf7db21dfeb657c5d42eac87fbf561893.
+The saved STRM seed-2 checkpoint reports step 10,000 with the intended
+width-64/four-loop configuration, and an independent fresh evaluation of that
+checkpoint exactly reproduced its stored held-out-depth final exact accuracy
+(99.17%) and transition exact accuracy (99.69%).
+
+Before reporting a method result, rerun seed 2 into a new output directory.
+The rerun should use deterministic-algorithm settings where feasible and must
+also include negative controls (permuted operations and labels) plus structural
+holdout evaluation.
+
+## Execution and storage policy after the D1 incident
+
+### Immediate D1 sequence
+
+1. Preserve the completed twelve-run records, configurations, manifest,
+   ledger, and checkpoints as the D1 artifact set.
+2. Run one fresh STRM seed-2 training replication in a new output directory.
+   This is a training replication, not a checkpoint re-evaluation; the latter
+   has already passed exactly.
+3. If the fresh run again reaches the high-generalization regime, run at least
+   two additional new STRM seeds to estimate the frequency of that regime.
+   If it does not, report a bimodal or unstable optimization finding rather
+   than a mean-only performance claim.
+4. Run operation/label permutation controls and D1 structural holdout before
+   claiming a method effect.
+5. Only then start the D2 calibration seed. D3 follows only after D2 confirms
+   masking, memory, runtime, and persistence behavior.
+
+### Kaggle design
+
+Use Kaggle only as compute and a short-lived durable workspace:
+
+- For long unattended matrices, use a private saved Version/batch run rather
+  than depending on an interactive draft session.
+- For D2/D3, use two independent GPU-pinned worker processes, one job per T4,
+  not distributed training of a small single model. This reduces wall-clock
+  time but not total GPU quota.
+- Each worker receives a unique run directory and writes its own resolved
+  config, manifest reference, train log, checkpoint, and result JSON.
+- A small append-only JSONL ledger and a compact completed-records JSON are
+  updated atomically after each seed. These are the durability mechanism;
+  zipping is optional.
+- A ZIP, when desired for download, must be written outside the source
+  directory and should exclude unnecessary source copies and prior ZIPs.
+
+### Result retention
+
+Keep compact scientific records in the Git repository: configuration,
+manifest/hash, seed, hardware, metrics, and report tables. Keep large
+checkpoints in a private Kaggle Output/Dataset or another private artifact
+store, referenced by immutable run identifiers and checksums. Never rely on a
+browser transcript as the sole copy of a result.
+
+### Venue positioning
+
+This work sits in the relatively specialised intersection of algorithmic
+generalisation, recurrent/iterative reasoning, and mechanistic evaluation of
+neural state transitions. A well-supported result is plausibly suitable for a
+NeurIPS/ICLR workshop or a focused benchmark/method paper. A main-track claim
+would require substantially broader and more robust evidence. It is not a
+CVPR-shaped project after the Gaussian-splatting direction was removed.

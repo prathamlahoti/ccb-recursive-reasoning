@@ -233,7 +233,10 @@ shutil.copytree(
     bundle / "runs",
     dirs_exist_ok=True,
 )
-shutil.make_archive(str(bundle), "zip", bundle)
+from ccb.artifacts import archive_directory
+
+# Write the ZIP beside the bundle, not inside it.
+archive_directory(bundle, Path("/kaggle/working/d1-transformer-seed0.zip"))
 ```
 
 Before consuming a full session, run the notebook interactively with `steps: 2`
@@ -354,3 +357,13 @@ experiment, then the D1 structural split before D2/D3.
 Do not enable official evaluation until model selection and hyperparameters are
 frozen. Do not advance to D2 or D3 until the D1 scale-finding result identifies
 a model with credible held-out-depth signal.
+
+## Archive safety incident: D1 confirmation controller
+
+The first three-seed controller wrote its latest ZIP inside the source state
+directory being archived. Each later archive pass then attempted to include an
+earlier ZIP, eventually raising OSError 28 (no space left on device).
+Per-seed JSON records were atomically written before the final archive attempt,
+so they remain the primary durable evidence. Future Kaggle runners must use
+the guarded archive helper and write their ZIP beside, never inside, the source
+state directory.
