@@ -311,6 +311,30 @@ All future Kaggle runs must copy `runs/`, the resolved configuration, and a
 compact metrics JSON to a notebook output bundle before ending the session, and
 use **Save Version** so those output artifacts persist.
 
+## Persisted D1 scale-finding rerun: 2026-08-21
+
+The rerun used the same one-seed, width-64, four-layer/loop, 10,000-update D1
+configuration on a Tesla T4. It wrote `d1-scale-finding-output.zip` before
+completion and was Quick Saved successfully as private Kaggle notebook version
+1. The draft GPU session was then off. Measured workload time was 6,838.750
+seconds; peak allocation was 9.718 GiB; official evaluation was disabled.
+
+| Model | Validation exact | Test-depth exact | Test-depth p_d | Test-depth h50 | Test-depth AUC | Strong-depth exact |
+|---|---:|---:|---:|---:|---:|---:|
+| Transformer | 22.4% | 0.0% | 0.500 | 1.00 | 0.000 | 0.0% |
+| Vanilla TRM | 18.8% | 0.0% | 0.500 | 1.00 | 0.000 | 0.0% |
+| DIS-TRM | 55.6% | 0.33% | 0.843 | 4.06 | 0.004 | 0.0% |
+| STRM | 81.4% | 5.17% | 0.916 | 7.88 | 0.045 | 0.0% |
+
+This is a strong **single-seed D1 scale-finding signal**: STRM substantially
+outperforms matched Transformer and vanilla TRM on validation and generated
+depth extrapolation; DIS-TRM is the second-best recursive baseline. It is not
+a SOTA or paper claim: the strong-depth suite remains at zero exact accuracy,
+there is only one seed, the Kaggle source snapshot predates the resumable
+launcher, and a structural holdout has not been run. The next justified spend
+is a persisted three-seed STRM versus DIS-TRM versus matched Transformer D1
+experiment, then the D1 structural split before D2/D3.
+
 Do not enable official evaluation until model selection and hyperparameters are
 frozen. Do not advance to D2 or D3 until the D1 scale-finding result identifies
 a model with credible held-out-depth signal.
