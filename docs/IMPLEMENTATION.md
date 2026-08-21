@@ -295,6 +295,22 @@ model to improve both in-distribution validation and held-out depth/horizon
 measures over the matched Transformer and vanilla TRM. Only then should that
 model receive a longer three-seed D1 run.
 
+## D1 three-seed confirmation plan
+
+`configs/d1-confirmation-3seeds.json` fixes the next comparison before it is
+run: the direct Transformer, vanilla TRM, DIS-TRM, and STRM at width 64 and
+four layers/loops, with seeds 0/1/2 and 10,000 updates each. This is a 12-run
+matrix. It retains the sealed-official-test policy and uses generated
+validation, depth-extension, and strong-depth suites only.
+
+For Kaggle, each model/seed must be launched as its own one-plan job and, after
+each completes, its result, checkpoint, logs, resolved configuration, and the
+cumulative manifest must be copied into a durable output bundle. The bundle is
+rewritten atomically after every completed plan and zipped before the next plan
+begins. If the session stops, rerunning the cell skips `result.json` files that
+already exist and resumes the remaining plans. A private Quick Save is required
+after the matrix completes to persist the output bundle outside the session.
+
 ## Lost-output incident: 2026-08-21 D1 scale-finding attempt
 
 A one-seed D1 comparison of Transformer, TRM, DIS-TRM, and STRM at 10,000
