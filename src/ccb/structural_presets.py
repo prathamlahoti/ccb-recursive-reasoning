@@ -2,12 +2,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from ccb.dataset import SplitConfig, generate_split
+from ccb.dataset import OfficialEvaluationFirewall, SplitConfig, generate_split
 from ccb.domains.alien_grid import AlienGridDomain, GridOperation
 from ccb.domains.social_logic import SocialLogicDomain
 from ccb.domains.symbolic_pointers import PointerOperation, SymbolicPointersDomain
 from ccb.records import Episode
-from ccb.structural import contains_operation_pair, generate_filtered_split
+from ccb.structural import (
+    contains_d1_semantic_subprogram,
+    contains_operation_pair,
+    d1_semantic_subprogram_signatures,
+    d1_transformation_signature,
+    generate_filtered_firewalled_split,
+    generate_filtered_split,
+    transition_overlap_audit,
+)
 
 
 def build_structural_splits(
@@ -82,3 +90,94 @@ def build_structural_splits(
         return splits, audit
 
     raise ValueError(f"unknown structural domain: {domain}")
+
+
+def build_d1_semantic_structural_splits(
+    *, seeds_per_depth: int = 50
+) -> tuple[dict[str, tuple[Episode[Any, Any], ...]], dict[str, Any]]:
+    """Build a semantically screened, randomized-initial-state D1 suite.
+
+    It excludes every training or validation subprogram with the same net grid
+    permutation as the reserved pair, not only that pair's literal tokens.
+    """
+
+    if seeds_per_depth < 1:
+        raise ValueError("seeds_per_depth must be positive")
+    domain = AlienGridDomain(randomize_initial_state=True)
+    firewall = OfficialEvaluationFirewall.from_official_records("d1")
+    reserved = (GridOperation.ROTATE_90_CW, GridOperation.SHIFT_ROW_2_LEFT)
+    reserved_signature = d1_transformation_signature(reserved)
+    requires_direct_pair = lambda episode: contains_operation_pair(episode, *reserved)
+    excludes_reserved_semantics = lambda episode: not contains_d1_semantic_subprogram(
+        episode, reserved_signature
+    )
+
+    # The test is generated first. Its concrete state-transition triples are
+    # then protected from validation and training reuse.
+    forbidden_transitions: set[str] = set()
+    test_depth = generate_filtered_firewalled_split(
+        domain.generate,
+        SplitConfig(
+            "test_semantic_pair_depth",
+            (25, 30, 35, 40, 45, 50),
+            seeds_per_depth,
+            41_000_000,
+        ),
+        requires_direct_pair,
+        firewall=firewall,
+        forbidden_transition_fingerprints=forbidden_transitions,
+    )
+    test_matched = generate_filtered_firewalled_split(
+        domain.generate,
+        SplitConfig(
+            "test_semantic_pair_matched", (5, 10, 15, 20), seeds_per_depth, 42_000_000
+        ),
+        requires_direct_pair,
+        firewall=firewall,
+        forbidden_transition_fingerprints=forbidden_transitions,
+    )
+    validation = generate_filtered_firewalled_split(
+        domain.generate,
+        SplitConfig(
+            "validation_semantic",
+            tuple(range(1, 21)),
+            max(1, seeds_per_depth // 4),
+            43_000_000,
+        ),
+        excludes_reserved_semantics,
+        firewall=firewall,
+        forbidden_transition_fingerprints=forbidden_transitions,
+    )
+    train = generate_filtered_firewalled_split(
+        domain.generate,
+        SplitConfig("train_semantic", tuple(range(1, 21)), seeds_per_depth, 44_000_000),
+        excludes_reserved_semantics,
+        firewall=firewall,
+        forbidden_transition_fingerprints=forbidden_transitions,
+    )
+    splits = {
+        "train": train,
+        "validation": validation,
+        "test_semantic_pair_matched": test_matched,
+        "test_semantic_pair_depth": test_depth,
+    }
+    transition_audit = transition_overlap_audit(splits)
+    semantic_exposure = {
+        name: sum(
+            reserved_signature in d1_semantic_subprogram_signatures(episode)
+            for episode in episodes
+        )
+        for name, episodes in splits.items()
+    }
+    if not transition_audit["transition_disjoint"]:
+        raise RuntimeError("semantic D1 split has cross-split transition overlap")
+    if semantic_exposure["train"] or semantic_exposure["validation"]:
+        raise RuntimeError("reserved semantic transformation leaked into training")
+    return splits, {
+        "schema": "ccb_d1_semantic_structural_v1",
+        "randomized_initial_states": True,
+        "reserved_tokens": [operation.value for operation in reserved],
+        "reserved_transformation": list(reserved_signature),
+        "semantic_segment_exposure": semantic_exposure,
+        "transition_audit": transition_audit,
+    }

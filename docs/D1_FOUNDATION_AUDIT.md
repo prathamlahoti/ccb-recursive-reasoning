@@ -79,18 +79,29 @@ The defensible conclusion is now narrower: **STRM has a strong advantage on
 this token-level D1 split under this fixed budget.** It is not yet evidence of
 an unseen-semantic-pair advantage, SOTA, or a method contribution by itself.
 
-## Required repair before further method claims
+## Repair status
 
-1. Introduce randomized valid initial grids during both training and testing.
-2. Construct a group-aware semantic split: canonicalize the grid permutation
-   enacted by a program/prefix and reject training examples that realize the
-   held test transformation or held state--operation transition through an
-   alternative token spelling.
-3. Audit and report overlap of `(current state, operation, next state)` triples
-   across train and every test split, not merely raw program strings.
-4. Rebuild STRM and all baseline splits from one saved manifest; independently
+Implemented locally in `build_d1_semantic_structural_splits` and exposed as
+`ccb generate-structural --domain d1 --semantic-d1`:
+
+- D1 starts from deterministic randomized valid grids rather than the one
+  official grid.
+- Train and validation reject every contiguous operation segment whose net
+  permutation equals the reserved pair, including its alternate spelling.
+- Test is generated first; train and validation then reject every exact oracle
+  transition already present in test or another split.
+- A full 100-examples-per-depth CPU build takes about 16 seconds and creates
+  2,000 train, 500 validation, 400 matched-depth test, and 600 depth-holdout
+  episodes. It passed zero semantic exposure, zero cross-split transition
+  overlap, and zero official-record overlap. The locally rebuilt manifest hash
+  was `a1b34cdc1dd0a73f6b224a1cb557a64cee361241f43b9cc17ea5a261dbdbdae8`.
+
+## Required next experiment before method claims
+
+1. Rebuild STRM and all baselines from the one saved semantic-suite manifest;
+   independently
    load/evaluate all checkpoints.
-5. Only after the repaired split passes, run seeds 3 and 5 for STRM and
+2. Only after the repaired split passes, run seeds 3 and 5 for STRM and
    multi-seed matched baselines.
 
 Until then, do not use the existing structural result as the headline research

@@ -26,7 +26,7 @@ from ccb.training import (
     seed_everything,
     train_fixed_batch,
 )
-from ccb.structural_presets import build_structural_splits
+from ccb.structural_presets import build_d1_semantic_structural_splits, build_structural_splits
 from ccb.official import OFFICIAL_DATA_HASHES, verify_data_hash, verify_official_records
 from ccb.validation import validate_episode
 
@@ -115,9 +115,16 @@ def _smoke_train(args: argparse.Namespace) -> int:
 
 def _generate_structural(args: argparse.Namespace) -> int:
     output = Path(args.output)
-    splits, structural_audit = build_structural_splits(
-        args.domain, seeds_per_depth=args.seeds_per_depth
-    )
+    if args.semantic_d1:
+        if args.domain != "d1":
+            raise SystemExit("--semantic-d1 is only valid with --domain d1")
+        splits, structural_audit = build_d1_semantic_structural_splits(
+            seeds_per_depth=args.seeds_per_depth
+        )
+    else:
+        splits, structural_audit = build_structural_splits(
+            args.domain, seeds_per_depth=args.seeds_per_depth
+        )
     for name, episodes in splits.items():
         for episode in episodes:
             validate_episode(episode)
@@ -125,10 +132,19 @@ def _generate_structural(args: argparse.Namespace) -> int:
     manifest = build_manifest(
         splits,
         config={
-            "benchmark": "ccb_learn_structural_v1",
+            "benchmark": (
+                "ccb_d1_semantic_structural_v1"
+                if args.semantic_d1
+                else "ccb_learn_structural_v1"
+            ),
             "domain": args.domain,
             "seeds_per_depth": args.seeds_per_depth,
         },
+        official_firewall=(
+            OfficialEvaluationFirewall.from_official_records("d1")
+            if args.semantic_d1
+            else None
+        ),
     )
     manifest["structural_audit"] = structural_audit
     manifest["shortcut_audits"] = {
@@ -179,6 +195,11 @@ def build_parser() -> argparse.ArgumentParser:
     structural.add_argument("--domain", choices=("d1", "d2", "d3"), required=True)
     structural.add_argument("--output", required=True)
     structural.add_argument("--seeds-per-depth", type=int, default=50)
+    structural.add_argument(
+        "--semantic-d1",
+        action="store_true",
+        help="use randomized inputs and semantic-transformation exclusion for D1",
+    )
     structural.set_defaults(handler=_generate_structural)
     verify = subparsers.add_parser(
         "verify-official", help="verify hashes and exact D1-D3 official-record compatibility"

@@ -127,6 +127,28 @@ Structural extensions are separately versioned:
 D3 structural testing combines topology and graph-size shift and must be
 reported as such.
 
+### Repaired D1 semantic structural suite
+
+The original D1 structural row above is retained only as a token-level
+diagnostic. It is not a semantic holdout: for example,
+`TRANSPOSE_GRID -> FLIP_HORIZONTAL` implements `ROTATE_90_CW`.
+
+Use the repaired suite for method claims:
+
+```text
+ccb generate-structural --domain d1 --semantic-d1 --output <directory>
+```
+
+It uses randomized valid initial grids, protects the official fixed records,
+and excludes from train/validation every contiguous program segment whose net
+grid permutation equals the held composition
+`ROTATE_90_CW -> SHIFT_ROW_2_LEFT`. It also generates test first and rejects
+any train/validation example reusing a concrete
+`(before state, operation, after state)` transition from a protected test
+split. The manifest records semantic exposure and all cross-split transition
+overlap counts; both must be zero for train/validation exposure and for every
+cross-split transition overlap.
+
 ## Metrics and audits
 
 Implemented metrics include final exact accuracy, full-trace exact accuracy,
