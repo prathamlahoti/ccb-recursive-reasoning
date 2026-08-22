@@ -158,6 +158,79 @@ class VanillaTRM(BatchModel):
         return ModelOutput(trajectory[-1], tuple(trajectory))
 
 
+class FaithfulCCBTRM(BatchModel):
+    """CCB adaptation of TRM's answer/latent deep-refinement algorithm.
+
+    This keeps TRM's two persistent features, ``y`` (answer) and ``z``
+    (latent), one shared network, detached outer refinements, and a final
+    gradient-bearing refinement. It is intentionally separate from
+    :class:`VanillaTRM`, the earlier prefix-wise diagnostic adaptation.
+    """
+
+    def __init__(
+        self,
+        codec: DomainCodec,
+        *,
+        width: int = 128,
+        latent_steps: int = 6,
+        refinement_steps: int = 3,
+    ) -> None:
+        super().__init__(codec, width)
+        if latent_steps < 1 or refinement_steps < 1:
+            raise ValueError("TRM recursion counts must be positive")
+        self.latent_steps = latent_steps
+        self.refinement_steps = refinement_steps
+        self.y_initial = nn.Parameter(torch.randn(1, 1, codec.state_size, width))
+        self.z_initial = nn.Parameter(torch.randn(1, 1, codec.state_size, width))
+        self.recall_projection = nn.Linear(3 * width, width)
+        self.refinement_norm = nn.LayerNorm(width)
+        self.refinement_cells = CellMixer(width)
+        self.refinement_mlp = ResidualMLP(width, expansion=4)
+        self.halt_head = nn.Linear(width, 1)
+
+    def _question(self, batch: TransitionBatch) -> Tensor:
+        initial, operations = self._inputs(batch)
+        return initial[:, None, :, :] + operations[:, :, None, :]
+
+    def initial_states(self, batch: TransitionBatch) -> tuple[Tensor, Tensor]:
+        batch_size, depth = batch.operations.shape
+        shape = (batch_size, depth, self.codec.state_size, self.width)
+        return self.y_initial.expand(shape), self.z_initial.expand(shape)
+
+    def _net(self, question: Tensor, answer: Tensor, latent: Tensor) -> Tensor:
+        hidden = self.recall_projection(torch.cat((question, answer, latent), dim=-1))
+        hidden = self.refinement_cells(self.refinement_norm(hidden))
+        return self.refinement_mlp(hidden)
+
+    def latent_recursion(self, question: Tensor, answer: Tensor, latent: Tensor) -> tuple[Tensor, Tensor]:
+        for _ in range(self.latent_steps):
+            latent = self._net(question, answer, latent)
+        answer = self._net(torch.zeros_like(question), answer, latent)
+        return answer, latent
+
+    def refine(
+        self,
+        batch: TransitionBatch,
+        answer: Tensor,
+        latent: Tensor,
+    ) -> tuple[Tensor, Tensor, ModelOutput, Tensor]:
+        """One TRM deep-refinement update, with only its final pass tracked."""
+
+        question = self._question(batch)
+        with torch.no_grad():
+            for _ in range(self.refinement_steps - 1):
+                answer, latent = self.latent_recursion(question, answer, latent)
+        answer, latent = self.latent_recursion(question, answer, latent)
+        logits = self.decoder(answer)
+        halt_logits = self.halt_head(answer.mean(dim=(1, 2))).squeeze(-1)
+        return answer.detach(), latent.detach(), ModelOutput(logits), halt_logits
+
+    def forward(self, batch: TransitionBatch) -> ModelOutput:
+        answer, latent = self.initial_states(batch)
+        answer, latent, output, _ = self.refine(batch, answer, latent)
+        return output
+
+
 class FastSlowRecurrentModel(BatchModel):
     def __init__(self, codec: DomainCodec, *, width: int = 128, fast_loops: int = 4) -> None:
         super().__init__(codec, width)

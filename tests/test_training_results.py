@@ -16,6 +16,7 @@ from ccb.training import (
     save_checkpoint,
     seed_everything,
     train_batches,
+    train_faithful_trm_batches,
     train_fixed_batch,
 )
 
@@ -88,6 +89,29 @@ class TrainingTests(unittest.TestCase):
             )
         for left, right in zip(uninterrupted.parameters(), resumed.parameters()):
             self.assertTrue(torch.equal(left, right))
+
+    def test_faithful_trm_deep_supervision_and_ema(self) -> None:
+        seed_everything(3)
+        batch = collate_episodes(
+            [AlienGridDomain().generate(depth=2, seed=seed) for seed in range(4)]
+        )
+        config = TrainConfig(
+            model="trm_faithful",
+            width=16,
+            layers_or_loops=1,
+            learning_rate=0.01,
+            steps=4,
+            trm_latent_steps=1,
+            trm_refinement_steps=2,
+            trm_supervision_steps=2,
+            ema_decay=0.9,
+        )
+        model = build_model(config, batch.codec)
+        optimizer, history = train_faithful_trm_batches(model, [batch] * 4, config)
+        self.assertEqual(len(history), 4)
+        self.assertTrue(all("halt_loss" in item for item in history))
+        self.assertTrue(torch.isfinite(torch.tensor(history[-1]["loss"])))
+        self.assertEqual(len(optimizer.param_groups), 1)
 
 
 class ResultTests(unittest.TestCase):

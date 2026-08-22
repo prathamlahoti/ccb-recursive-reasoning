@@ -24,6 +24,7 @@ from ccb.training import (
     jsonl_logger,
     save_checkpoint,
     seed_everything,
+    train_faithful_trm_batches,
     train_fixed_batch,
 )
 from ccb.structural_presets import build_d1_semantic_structural_splits, build_structural_splits
@@ -87,9 +88,17 @@ def _smoke_train(args: argparse.Namespace) -> int:
     )
     model = build_model(config, batch.codec)
     output = Path(args.output)
-    optimizer, history = train_fixed_batch(
-        model, batch, config, log_callback=jsonl_logger(output / "train.jsonl")
-    )
+    if args.model == "trm_faithful":
+        optimizer, history = train_faithful_trm_batches(
+            model,  # type: ignore[arg-type]
+            [batch] * config.steps,
+            config,
+            log_callback=jsonl_logger(output / "train.jsonl"),
+        )
+    else:
+        optimizer, history = train_fixed_batch(
+            model, batch, config, log_callback=jsonl_logger(output / "train.jsonl")
+        )
     metrics = evaluate_batch(model, batch)
     save_checkpoint(
         output / "checkpoint.pt",
@@ -209,7 +218,7 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--domain", choices=("d1", "d2", "d3"), required=True)
     smoke.add_argument(
         "--model",
-        choices=("transformer", "gru", "lstm", "looped_transformer", "trm", "dis_trm", "fast_slow", "strm", "gnn"),
+        choices=("transformer", "gru", "lstm", "looped_transformer", "trm", "trm_faithful", "dis_trm", "fast_slow", "strm", "gnn"),
         required=True,
     )
     smoke.add_argument("--output", required=True)

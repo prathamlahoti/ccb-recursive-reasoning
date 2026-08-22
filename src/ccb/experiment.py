@@ -30,6 +30,7 @@ from ccb.training import (
     save_checkpoint,
     seed_everything,
     train_batches,
+    train_faithful_trm_batches,
 )
 
 
@@ -249,16 +250,27 @@ def run_experiment_matrix(
                     step=step,
                 )
 
-        optimizer, history = train_batches(
-            model,
-            _batch_stream(splits["train"], config, seed),
-            train_config,
-            device=config.device,
-            log_callback=jsonl_logger(run_directory / "train.jsonl"),
-            optimizer=optimizer,
-            start_step=start_step,
-            checkpoint_callback=checkpoint_if_due,
-        )
+        if model_name == "trm_faithful":
+            if start_step:
+                raise ValueError("faithful TRM resumption is not implemented yet")
+            optimizer, history = train_faithful_trm_batches(
+                model,  # type: ignore[arg-type]
+                _batch_stream(splits["train"], config, seed),
+                train_config,
+                device=config.device,
+                log_callback=jsonl_logger(run_directory / "train.jsonl"),
+            )
+        else:
+            optimizer, history = train_batches(
+                model,
+                _batch_stream(splits["train"], config, seed),
+                train_config,
+                device=config.device,
+                log_callback=jsonl_logger(run_directory / "train.jsonl"),
+                optimizer=optimizer,
+                start_step=start_step,
+                checkpoint_callback=checkpoint_if_due,
+            )
         evaluations = {}
         for split_name in ("validation", "test_depth", "test_strong"):
             evaluations[split_name] = evaluate_model(

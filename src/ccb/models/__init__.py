@@ -1,5 +1,6 @@
 from ccb.models.baselines import (
     DirectTransformer,
+    FaithfulCCBTRM,
     FastSlowRecurrentModel,
     LoopedTransformer,
     RecurrentBaseline,
@@ -11,6 +12,7 @@ from ccb.models.gnn import SocialMessagePassingGNN
 
 __all__ = [
     "DirectTransformer",
+    "FaithfulCCBTRM",
     "FastSlowRecurrentModel",
     "LoopedTransformer",
     "ModelOutput",

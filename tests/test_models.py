@@ -10,6 +10,7 @@ from ccb.domains.symbolic_pointers import SymbolicPointersDomain
 from ccb.encoding import collate_episodes
 from ccb.models import (
     DirectTransformer,
+    FaithfulCCBTRM,
     FastSlowRecurrentModel,
     LoopedTransformer,
     RecurrentBaseline,
@@ -59,6 +60,9 @@ class ModelTests(unittest.TestCase):
             RecurrentBaseline(self.batch.codec, width=16, layers=1, cell="lstm"),
             LoopedTransformer(self.batch.codec, width=16, heads=2, loops=2),
             VanillaTRM(self.batch.codec, width=16, loops=2),
+            FaithfulCCBTRM(
+                self.batch.codec, width=16, latent_steps=1, refinement_steps=2
+            ),
             FastSlowRecurrentModel(self.batch.codec, width=16, fast_loops=2),
             StateTransitionRecursiveModel(self.batch.codec, width=16, inner_loops=2),
         )
@@ -88,6 +92,9 @@ class ModelTests(unittest.TestCase):
         models = (
             DirectTransformer(self.batch.codec, width=16, heads=2, layers=1),
             VanillaTRM(self.batch.codec, width=16, loops=2),
+            FaithfulCCBTRM(
+                self.batch.codec, width=16, latent_steps=1, refinement_steps=2
+            ),
             StateTransitionRecursiveModel(self.batch.codec, width=16, inner_loops=2),
         )
         for model in models:
@@ -96,6 +103,16 @@ class ModelTests(unittest.TestCase):
                 original = model(self.batch).logits
                 changed = model(altered).logits
             self.assertTrue(torch.equal(original, changed))
+
+    def test_faithful_trm_carries_detached_refinement_state(self) -> None:
+        model = FaithfulCCBTRM(
+            self.batch.codec, width=16, latent_steps=1, refinement_steps=2
+        )
+        answer, latent = model.initial_states(self.batch)
+        answer, latent, output, _ = model.refine(self.batch, answer, latent)
+        self.assertFalse(answer.requires_grad)
+        self.assertFalse(latent.requires_grad)
+        self.assertEqual(tuple(output.logits.shape), (2, 4, 9, 9))
 
     def test_social_gnn_forward_backward(self) -> None:
         domain = SocialLogicDomain(number_of_agents=5)
