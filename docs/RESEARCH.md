@@ -6,6 +6,33 @@ Can a small weight-shared recursive model preserve correct structured state
 over longer unseen operation sequences than parameter- and compute-accounted
 non-recursive models, especially on official CCB D3 social logic?
 
+## Scope correction: faithful TRM first, extensions second
+
+The originating direction is to **apply TRM to CCB**. The primary experiment
+must preserve the original CCB task definition, including fixed D1/D2 initial
+states and sealed official records. Randomized initial grids and semantic
+structural holdouts are valuable CCB-Learn stress tests, but they are not
+replacements for the CCB task.
+
+The current `VanillaTRM` is a useful *prefix-wise CCB adaptation* of the
+published recursive update schedule, not yet a faithful TRM training
+implementation. Published TRM repeatedly refines answer state `y` and latent
+state `z` through an outer deep-supervision loop, detaches earlier refinements,
+backpropagates through the final refinement, and uses EMA. Our current model
+has shared `y/z` updates and detached warm-up cycles but lacks that outer
+procedure and EMA. It must not be called a reproduction.
+
+Correct hierarchy:
+
+1. **Primary:** faithful CCB-TRM on the original fixed-input CCB task, trained
+   only on generated official-semantics data and evaluated once on sealed
+   official records.
+2. **Baselines:** direct Transformer, recurrent sequence model, and
+   compute-accounted CCB-TRM with the same serialized CCB input/output.
+3. **Extension:** STRM as an explicit persistent-transition-state ablation of
+   faithful CCB-TRM.
+4. **Diagnostic extension:** randomized semantic D1 tests, labelled CCB-Learn.
+
 ## Proposed contribution
 
 Applying vanilla TRM alone is not sufficient novelty. The paper-worthy study is

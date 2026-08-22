@@ -13,6 +13,10 @@ useful as implementation diagnostics and as evidence that STRM can fit and
 execute the old generator, but they are not evidence of semantic
 compositional-generalization superiority.
 
+The audit does **not** recommend replacing CCB with randomized D1. Original
+CCB remains the primary TRM application; the randomized semantic suite is a
+separate diagnostic extension that protects against overclaiming.
+
 ## Verified
 
 | Check | Result | Evidence |
@@ -63,6 +67,11 @@ reasoning method without the repaired controls.
    result from a saved commit, manifest, and checkpoint.
 
 ## Non-negotiable protocol for the next result
+
+Before the semantic-suite protocol below, implement and validate a faithful
+CCB-TRM training loop: outer deep answer/latent refinement with the published
+detach schedule and EMA. Its official-CCB result is the primary answer to the
+assignment; the semantic suite remains a stress test.
 
 1. Upload only commit `553db17` or later as a new private Kaggle source
    Dataset version; record its Git commit in every result.
