@@ -226,7 +226,7 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--domain", choices=("d1", "d2", "d3"), required=True)
     smoke.add_argument(
         "--model",
-        choices=("transformer", "gru", "lstm", "looped_transformer", "trm", "trm_faithful", "dis_trm", "fast_slow", "strm", "gnn"),
+        choices=("transformer", "gru", "lstm", "looped_transformer", "trm", "trm_faithful", "trm_upstream_core", "dis_trm", "fast_slow", "strm", "gnn"),
         required=True,
     )
     smoke.add_argument("--output", required=True)

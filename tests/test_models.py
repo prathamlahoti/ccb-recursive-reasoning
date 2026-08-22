@@ -13,6 +13,7 @@ from ccb.models import (
     FaithfulCCBTRM,
     FastSlowRecurrentModel,
     LoopedTransformer,
+    PublishedTRMCCB,
     RecurrentBaseline,
     SocialMessagePassingGNN,
     StateTransitionRecursiveModel,
@@ -63,6 +64,9 @@ class ModelTests(unittest.TestCase):
             FaithfulCCBTRM(
                 self.batch.codec, width=16, latent_steps=1, refinement_steps=2
             ),
+            PublishedTRMCCB(
+                self.batch.codec, width=16, heads=2, layers=1, h_cycles=1, l_cycles=1
+            ),
             FastSlowRecurrentModel(self.batch.codec, width=16, fast_loops=2),
             StateTransitionRecursiveModel(self.batch.codec, width=16, inner_loops=2),
         )
@@ -95,6 +99,9 @@ class ModelTests(unittest.TestCase):
             FaithfulCCBTRM(
                 self.batch.codec, width=16, latent_steps=1, refinement_steps=2
             ),
+            PublishedTRMCCB(
+                self.batch.codec, width=16, heads=2, layers=1, h_cycles=1, l_cycles=1
+            ),
             StateTransitionRecursiveModel(self.batch.codec, width=16, inner_loops=2),
         )
         for model in models:
@@ -112,6 +119,16 @@ class ModelTests(unittest.TestCase):
         answer, latent, output, _ = model.refine(self.batch, answer, latent)
         self.assertFalse(answer.requires_grad)
         self.assertFalse(latent.requires_grad)
+        self.assertEqual(tuple(output.logits.shape), (2, 4, 9, 9))
+
+    def test_upstream_trm_uses_fixed_detached_carry(self) -> None:
+        model = PublishedTRMCCB(
+            self.batch.codec, width=16, heads=2, layers=1, h_cycles=2, l_cycles=1
+        )
+        self.assertFalse(model.h_init.requires_grad)
+        carry, output, _ = model.refine(self.batch, model.initial_carry(self.batch))
+        self.assertFalse(carry.z_h.requires_grad)
+        self.assertFalse(carry.z_l.requires_grad)
         self.assertEqual(tuple(output.logits.shape), (2, 4, 9, 9))
 
     def test_social_gnn_forward_backward(self) -> None:

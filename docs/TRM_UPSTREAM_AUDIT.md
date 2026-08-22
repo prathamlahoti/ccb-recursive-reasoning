@@ -49,3 +49,28 @@ does not support a publishable comparison.
 
 No STRM result or current `trm_faithful` result may be reported as a paper
 number during this protocol.
+
+## Implemented core: `trm_upstream_core`
+
+The implementation in `src/ccb/models/published_trm.py` is the new, separate
+candidate used for this reset. It preserves the upstream computational core:
+
+- fixed, non-trainable `h_init` and `l_init` buffers;
+- one shared stack of bidirectional-attention, RMSNorm, SwiGLU blocks used for
+  both `z_H` and `z_L` updates;
+- exactly `H_cycles - 1` no-gradient cycles followed by one gradient-bearing
+  cycle; and
+- detached outgoing carry plus a two-logit Q-head interface.
+
+The explicit CCB adapter flattens `(transition step, state-cell)` tokens. A
+token is `initial_state[cell] * operation_vocab_size + operation[step]`; its
+label is only the oracle value of that same trace cell. Thus no target value
+can enter the forward input. Padding is excluded through the CCB step mask.
+
+This is an **upstream-derived core**, not yet an exact end-to-end reproduction:
+it uses native PyTorch attention/embedding layers rather than Samsung's casted
+layers/RoPE implementation, has no puzzle-ID embedding because CCB provides no
+puzzle IDs, and does not yet activate the full ACT sampling/loss loop. The
+tiny-batch gate is deliberately run with fixed refinement before ACT is added;
+otherwise it would conflate architecture correctness with a halting-policy
+failure. These deviations must remain explicit in any report.

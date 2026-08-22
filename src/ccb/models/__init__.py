@@ -9,6 +9,7 @@ from ccb.models.baselines import (
 )
 from ccb.models.common import ModelOutput
 from ccb.models.gnn import SocialMessagePassingGNN
+from ccb.models.published_trm import PublishedTRMCCB
 
 __all__ = [
     "DirectTransformer",
@@ -16,6 +17,7 @@ __all__ = [
     "FastSlowRecurrentModel",
     "LoopedTransformer",
     "ModelOutput",
+    "PublishedTRMCCB",
     "RecurrentBaseline",
     "SocialMessagePassingGNN",
     "StateTransitionRecursiveModel",

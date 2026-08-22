@@ -18,6 +18,7 @@ from ccb.models import (
     FaithfulCCBTRM,
     FastSlowRecurrentModel,
     LoopedTransformer,
+    PublishedTRMCCB,
     RecurrentBaseline,
     SocialMessagePassingGNN,
     StateTransitionRecursiveModel,
@@ -42,6 +43,9 @@ class TrainConfig:
     trm_supervision_steps: int = 16
     ema_decay: float = 0.999
     trm_evaluation_weights: str = "ema"
+    trm_h_cycles: int = 3
+    trm_l_cycles: int = 6
+    trm_max_depth: int = 100
 
 
 def seed_everything(seed: int) -> None:
@@ -76,6 +80,17 @@ def build_model(config: TrainConfig, codec: DomainCodec) -> nn.Module:
             width=width,
             latent_steps=config.trm_latent_steps,
             refinement_steps=config.trm_refinement_steps,
+        )
+    if config.model == "trm_upstream_core":
+        heads = 4 if width % 4 == 0 else 1
+        return PublishedTRMCCB(
+            codec,
+            width=width,
+            heads=heads,
+            layers=count,
+            h_cycles=config.trm_h_cycles,
+            l_cycles=config.trm_l_cycles,
+            max_depth=config.trm_max_depth,
         )
     if config.model == "dis_trm":
         return VanillaTRM(
