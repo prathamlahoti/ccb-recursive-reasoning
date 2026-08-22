@@ -1,4 +1,5 @@
 import unittest
+from dataclasses import replace
 
 import torch
 from torch.nn import functional as F
@@ -79,6 +80,22 @@ class ModelTests(unittest.TestCase):
             output = model(self.batch)
             self.assertEqual(len(output.loop_logits), 3)
             self.assertTrue(all(item.shape == output.logits.shape for item in output.loop_logits))
+
+    def test_d1_model_outputs_do_not_depend_on_targets(self) -> None:
+        """Targets are labels only; forwarding a batch must not consume them."""
+
+        altered = replace(self.batch, targets=(self.batch.targets + 1) % 9)
+        models = (
+            DirectTransformer(self.batch.codec, width=16, heads=2, layers=1),
+            VanillaTRM(self.batch.codec, width=16, loops=2),
+            StateTransitionRecursiveModel(self.batch.codec, width=16, inner_loops=2),
+        )
+        for model in models:
+            model.eval()
+            with torch.no_grad():
+                original = model(self.batch).logits
+                changed = model(altered).logits
+            self.assertTrue(torch.equal(original, changed))
 
     def test_social_gnn_forward_backward(self) -> None:
         domain = SocialLogicDomain(number_of_agents=5)
