@@ -12,7 +12,7 @@ rate 0.001, batch size 64, 10,000 optimizer steps, raw-argmax decoding, and the
 CCB-Learn D1 generator with the official-record firewall. The successful
 reference configuration is 153,033 parameters.
 
-Baseline structural runs will use the *same* D1 split, seed 4, width 64,
+Baseline structural runs use the *same* D1 split, seed 4, width 64,
 four layers/loops, learning rate 0.001, batch size 64, and 10,000 steps. Their
 parameter counts differ naturally by architecture; this is a fixed-budget,
 not parameter-matched, comparison.
@@ -59,12 +59,51 @@ every 1,000 steps. An earlier structural run was cancelled because it
 incorrectly demanded globally unique programs and could never fill depth 1;
 it is excluded from all analysis.
 
+## Fair structural baselines (seed 4)
+
+Private Kaggle Version `344204584` (Version 12, completed successfully in
+2,394.9 seconds on two T4 GPUs) ran Transformer, vanilla TRM, and DIS-TRM
+against the exact same generated splits. Every result has the same manifest
+hash, `b69a16a994c18381485204bb075df721551854d068e96ff27cb8c87b4a6d4140`,
+which verifies split identity across the three baselines. STRM row is the
+previously completed seed-4 run (`344194025`) and is shown only for direct
+comparison.
+
+| Model | Parameters | Final train loss | Validation no-pair: final / transition | Matched-depth pair: final / transition | Pair + depth (25--50): final / transition |
+|---|---:|---:|---:|---:|---:|
+| Transformer | 248,649 | 0.690 | 22.20% / 39.24% | 7.00% / 32.50% | 0.00% / 11.78% |
+| Vanilla TRM | 123,657 | 1.013 | 13.20% / 18.78% | 1.25% / 15.30% | 0.00% / 5.49% |
+| DIS-TRM | 123,657 | 0.339 | 55.40% / 72.46% | 50.00% / 69.40% | 0.50% / 29.29% |
+| STRM | 153,033 | n/a* | 100.00% / 100.00% | 99.50% / 99.92% | 93.50% / 97.89% |
+
+\*The STRM structural runner reported the durable evaluation record but not a
+directly comparable final-loss field in the short result summary; its earlier
+seed-4 controls and its structural validation both reached essentially exact
+fit.
+
+The critical result is the combined **unseen operation-pair plus extrapolated
+depth** split. At the same 10,000-step budget, STRM reaches 93.50% final-exact
+accuracy, whereas the best baseline, DIS-TRM, reaches 0.50%. This is a large
+and qualitatively meaningful separation, not a minor improvement. It also
+shows why matched-depth structural accuracy alone is insufficient: DIS-TRM
+retains 50.0% final exact there but fails when sequence depth rises from
+5--20 to 25--50.
+
+This is strong evidence for the hypothesis that STRM's slow-state recurrence
+supports compositional transition learning and long-horizon execution on D1.
+It is **not yet a SOTA claim**: the comparison is one seed per architecture,
+the benchmark is CCB-Learn rather than the unavailable original CCB generator,
+and the remaining question is whether STRM's structural result is stable over
+additional seeds.
+
 ## Current evidence and remaining bounded D1 work
 
 - Baseline depth-only matrix: Transformer, TRM, DIS-TRM, and STRM all have
   seeds 0--2.
 - STRM has additional depth-only seeds 3--5, recorded in
   `D1_SEED_STABILITY_RESULTS.md`.
-- The next run is the exact structural split above for Transformer, TRM, and
-  DIS-TRM at seed 4. It answers comparative advantage before additional STRM
-  structural replications.
+- The seed-4 structural baseline comparison is complete and establishes a
+  substantial fixed-budget advantage for STRM.
+- The next bounded test is two additional STRM seeds (3 and 5) on this exact
+  structural split. It determines whether the 93.50% structural-plus-depth
+  result is stable rather than seed-specific.
