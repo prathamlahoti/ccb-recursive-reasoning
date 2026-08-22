@@ -322,9 +322,11 @@ def train_faithful_trm_batches(
 
     if config.trm_supervision_steps < 1:
         raise ValueError("trm_supervision_steps must be positive")
-    optimizer = build_optimizer(model, config)
-    ema = ExponentialMovingAverage(model, config.ema_decay)
     model.to(device)
+    optimizer = build_optimizer(model, config)
+    # Construct EMA after device placement; its shadow tensors must share the
+    # model's device for in-place updates during GPU training.
+    ema = ExponentialMovingAverage(model, config.ema_decay)
     history: list[dict[str, Any]] = []
     batch_iterator = iter(batches)
     update = 0

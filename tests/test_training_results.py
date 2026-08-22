@@ -112,6 +112,12 @@ class TrainingTests(unittest.TestCase):
         self.assertTrue(all("halt_loss" in item for item in history))
         self.assertTrue(torch.isfinite(torch.tensor(history[-1]["loss"])))
         self.assertEqual(len(optimizer.param_groups), 1)
+        self.assertTrue(
+            all(
+                parameter.device == next(model.parameters()).device
+                for parameter in model.parameters()
+            )
+        )
 
 
 class ResultTests(unittest.TestCase):
