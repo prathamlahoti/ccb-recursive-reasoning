@@ -1,9 +1,8 @@
-# Faithful TRM Algorithmic Adaptation for CCB
+# Superseded CCB TRM Prototype
 
-This document defines `trm_faithful`, the primary model for the instruction to
-apply TRM to CCB. It replaces neither the original TRM repository nor its
-ARC/Sudoku results; it is a controlled adaptation of TRM's algorithm to CCB's
-structured transition traces.
+This document records the earlier `trm_faithful` prototype. It is superseded
+by the upstream audit in `docs/TRM_UPSTREAM_AUDIT.md` and is not the primary
+model for applying TRM to CCB.
 
 ## Preserved TRM algorithm
 
@@ -41,8 +40,8 @@ follow-up ablation, not something claimed by the first CCB calibration.
 - The initial calibration uses smaller width/batch values than the paper,
   because CCB has different state shapes and free-tier GPU constraints.
 
-Therefore call this a **faithful TRM algorithmic adaptation**, never an exact
-reproduction of the published Sudoku/ARC implementation.
+Therefore it must be called a **TRM-inspired CCB prototype**, never a faithful
+adaptation or reproduction of the published Sudoku/ARC implementation.
 
 ## Primary protocol
 
