@@ -89,6 +89,7 @@ def _smoke_train(args: argparse.Namespace) -> int:
         trm_refinement_steps=args.trm_refinement_steps,
         trm_supervision_steps=args.trm_supervision_steps,
         ema_decay=args.ema_decay,
+        trm_evaluation_weights=args.trm_evaluation_weights,
     )
     model = build_model(config, batch.codec)
     model.to(args.device)
@@ -241,6 +242,7 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--trm-refinement-steps", type=int, default=3)
     smoke.add_argument("--trm-supervision-steps", type=int, default=16)
     smoke.add_argument("--ema-decay", type=float, default=0.999)
+    smoke.add_argument("--trm-evaluation-weights", choices=("ema", "raw"), default="ema")
     smoke.set_defaults(handler=_smoke_train)
     launch = subparsers.add_parser(
         "launch", help="run a reproducible model-by-seed experiment matrix"

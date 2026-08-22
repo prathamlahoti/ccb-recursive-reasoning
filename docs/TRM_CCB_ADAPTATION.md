@@ -71,6 +71,11 @@ examples. Failure means the implementation or optimization recipe is not yet
 fit for a benchmark run; success only establishes basic learnability, not
 generalization.
 
+When an overfit gate fails, compare the live (raw) weights with EMA weights
+under an identical seed and training budget before changing architectural or
+optimization settings. EMA is the paper-style evaluation default; raw weights
+are a diagnostic only and must never be silently substituted into a benchmark.
+
 ## Implementation checks
 
 - `FaithfulCCBTRM.refine` enforces the TRM detach schedule.

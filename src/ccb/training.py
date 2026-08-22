@@ -41,6 +41,7 @@ class TrainConfig:
     trm_refinement_steps: int = 3
     trm_supervision_steps: int = 16
     ema_decay: float = 0.999
+    trm_evaluation_weights: str = "ema"
 
 
 def seed_everything(seed: int) -> None:
@@ -322,6 +323,8 @@ def train_faithful_trm_batches(
 
     if config.trm_supervision_steps < 1:
         raise ValueError("trm_supervision_steps must be positive")
+    if config.trm_evaluation_weights not in {"ema", "raw"}:
+        raise ValueError("trm_evaluation_weights must be 'ema' or 'raw'")
     model.to(device)
     optimizer = build_optimizer(model, config)
     # Construct EMA after device placement; its shadow tensors must share the
@@ -366,8 +369,10 @@ def train_faithful_trm_batches(
             history.append(record)
             if log_callback is not None:
                 log_callback(record)
-    # Evaluation and final checkpoint use the stabilizing EMA weights.
-    ema.copy_to(model)
+    # Paper-style evaluation uses stabilizing EMA weights. The raw option is
+    # reserved for diagnostics that distinguish EMA lag from failed learning.
+    if config.trm_evaluation_weights == "ema":
+        ema.copy_to(model)
     return optimizer, history
 
 
