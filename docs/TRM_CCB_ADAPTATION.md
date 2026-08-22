@@ -54,6 +54,14 @@ reproduction of the published Sudoku/ARC implementation.
 5. Run STRM only as an extension/ablation. Run randomized semantic D1 only as
    a diagnostic CCB-Learn stress test.
 
+## First GPU calibration
+
+`configs/d1-trm-faithful-calibration-v1.json` is deliberately one seed, no
+official evaluation, and a 1,000-update budget. It measures runtime, memory,
+loss dynamics, and whether the implementation learns at all before any
+multi-seed comparison. It uses four (rather than sixteen) deep-supervision
+updates per loader batch so it is a calibration, not a paper result.
+
 ## Implementation checks
 
 - `FaithfulCCBTRM.refine` enforces the TRM detach schedule.

@@ -51,6 +51,10 @@ class ExperimentConfig:
     bootstrap_resamples: int = 2_000
     device: str = "cpu"
     checkpoint_interval_steps: int = 0
+    trm_latent_steps: int = 6
+    trm_refinement_steps: int = 3
+    trm_supervision_steps: int = 16
+    ema_decay: float = 0.999
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "ExperimentConfig":
@@ -204,6 +208,10 @@ def run_experiment_matrix(
             seed=seed,
             loop_supervision_weight=config.loop_supervision_weight,
             supervision=supervision,
+            trm_latent_steps=config.trm_latent_steps,
+            trm_refinement_steps=config.trm_refinement_steps,
+            trm_supervision_steps=config.trm_supervision_steps,
+            ema_decay=config.ema_decay,
         )
         run_identity = {
             "experiment": asdict(config),

@@ -1,0 +1,20 @@
+{
+  "domain": "d1",
+  "models": ["trm_faithful"],
+  "seeds": [4],
+  "output_directory": "runs/d1-trm-faithful-calibration-v1",
+  "width": 64,
+  "layers_or_loops": 4,
+  "steps": 1000,
+  "batch_size": 64,
+  "learning_rate": 0.001,
+  "weight_decay": 0.0,
+  "checkpoint_interval_steps": 0,
+  "bootstrap_resamples": 200,
+  "include_official_evaluation": false,
+  "device": "cuda",
+  "trm_latent_steps": 6,
+  "trm_refinement_steps": 3,
+  "trm_supervision_steps": 4,
+  "ema_decay": 0.999
+}
