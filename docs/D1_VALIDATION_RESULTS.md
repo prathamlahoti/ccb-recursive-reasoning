@@ -89,12 +89,14 @@ shows why matched-depth structural accuracy alone is insufficient: DIS-TRM
 retains 50.0% final exact there but fails when sequence depth rises from
 5--20 to 25--50.
 
-This is strong evidence for the hypothesis that STRM's slow-state recurrence
-supports compositional transition learning and long-horizon execution on D1.
-It is **not yet a SOTA claim**: the comparison is one seed per architecture,
-the benchmark is CCB-Learn rather than the unavailable original CCB generator,
-and the remaining question is whether STRM's structural result is stable over
-additional seeds.
+This result is a strong fixed-budget advantage on the current **token-level**
+split, but it must not be called semantic compositional generalization. A
+post-run algebra audit found that the held pair has an allowed alternative
+spelling: `TRANSPOSE_GRID -> FLIP_HORIZONTAL -> SHIFT_ROW_2_LEFT` implements
+the same net transformation as the held pair. See
+`D1_FOUNDATION_AUDIT.md`. The benchmark is CCB-Learn rather than the
+unavailable original CCB learning generator, and the comparison is one seed
+per architecture.
 
 ## Current evidence and remaining bounded D1 work
 
@@ -102,8 +104,6 @@ additional seeds.
   seeds 0--2.
 - STRM has additional depth-only seeds 3--5, recorded in
   `D1_SEED_STABILITY_RESULTS.md`.
-- The seed-4 structural baseline comparison is complete and establishes a
-  substantial fixed-budget advantage for STRM.
-- The next bounded test is two additional STRM seeds (3 and 5) on this exact
-  structural split. It determines whether the 93.50% structural-plus-depth
-  result is stable rather than seed-specific.
+- The seed-4 structural baseline comparison is complete but has exposed a
+  weakness in the token-level split. A semantic, state-transition-disjoint
+  replacement must be implemented before further structural seeds are useful.
