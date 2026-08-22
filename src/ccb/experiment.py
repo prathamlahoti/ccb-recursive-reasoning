@@ -56,6 +56,9 @@ class ExperimentConfig:
     trm_supervision_steps: int = 16
     ema_decay: float = 0.999
     trm_evaluation_weights: str = "ema"
+    trm_h_cycles: int = 3
+    trm_l_cycles: int = 6
+    trm_max_depth: int = 100
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "ExperimentConfig":
@@ -214,6 +217,9 @@ def run_experiment_matrix(
             trm_supervision_steps=config.trm_supervision_steps,
             ema_decay=config.ema_decay,
             trm_evaluation_weights=config.trm_evaluation_weights,
+            trm_h_cycles=config.trm_h_cycles,
+            trm_l_cycles=config.trm_l_cycles,
+            trm_max_depth=config.trm_max_depth,
         )
         run_identity = {
             "experiment": asdict(config),

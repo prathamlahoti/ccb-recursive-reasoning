@@ -74,3 +74,17 @@ puzzle IDs, and does not yet activate the full ACT sampling/loss loop. The
 tiny-batch gate is deliberately run with fixed refinement before ACT is added;
 otherwise it would conflate architecture correctness with a halting-policy
 failure. These deviations must remain explicit in any report.
+
+## Frozen comparison manifest (not yet launched)
+
+`configs/d1-trm-upstream-core-v1.json` and
+`configs/d1-transformer-compute-matched-v1.json` define the single-seed,
+generated-data calibration comparison. Both use seed 17, width 32, 1,000
+optimizer updates, batch size 64, learning rate 0.003, the same primary D1
+splits, and leave the official records sealed. The TRM has one shared block
+executed 21 times per forward call (`3 * (6 + 1)`); the Direct Transformer has
+21 unshared encoder layers. This matches block executions rather than
+parameters, which is the meaningful initial comparison for a weight-sharing
+recursive architecture. It is a calibration, not a paper result and is not to
+be launched until the ACT loss/halting implementation is included or the
+omission is deliberately registered as an ablation.
