@@ -62,6 +62,15 @@ loss dynamics, and whether the implementation learns at all before any
 multi-seed comparison. It uses four (rather than sixteen) deep-supervision
 updates per loader batch so it is a calibration, not a paper result.
 
+## Fixed-data overfit gate
+
+Before tuning or scaling, run one fixed-data D1 overfit gate: 32 deterministic
+depth-4 episodes, one seed, and no held-out evaluation. The acceptance
+criterion is near-perfect final and trace exact accuracy on those same 32
+examples. Failure means the implementation or optimization recipe is not yet
+fit for a benchmark run; success only establishes basic learnability, not
+generalization.
+
 ## Implementation checks
 
 - `FaithfulCCBTRM.refine` enforces the TRM detach schedule.

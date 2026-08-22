@@ -85,14 +85,21 @@ def _smoke_train(args: argparse.Namespace) -> int:
         steps=args.steps,
         seed=args.seed,
         supervision="dis" if args.model == "dis_trm" else "final",
+        trm_latent_steps=args.trm_latent_steps,
+        trm_refinement_steps=args.trm_refinement_steps,
+        trm_supervision_steps=args.trm_supervision_steps,
+        ema_decay=args.ema_decay,
     )
     model = build_model(config, batch.codec)
+    model.to(args.device)
+    batch = batch.to(args.device)
     output = Path(args.output)
     if args.model == "trm_faithful":
         optimizer, history = train_faithful_trm_batches(
             model,  # type: ignore[arg-type]
             [batch] * config.steps,
             config,
+            device=args.device,
             log_callback=jsonl_logger(output / "train.jsonl"),
         )
     else:
@@ -229,6 +236,11 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--examples", type=int, default=8)
     smoke.add_argument("--depth", type=int, default=4)
     smoke.add_argument("--seed", type=int, default=0)
+    smoke.add_argument("--device", default="cpu")
+    smoke.add_argument("--trm-latent-steps", type=int, default=6)
+    smoke.add_argument("--trm-refinement-steps", type=int, default=3)
+    smoke.add_argument("--trm-supervision-steps", type=int, default=16)
+    smoke.add_argument("--ema-decay", type=float, default=0.999)
     smoke.set_defaults(handler=_smoke_train)
     launch = subparsers.add_parser(
         "launch", help="run a reproducible model-by-seed experiment matrix"
