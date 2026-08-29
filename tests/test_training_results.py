@@ -12,6 +12,7 @@ from ccb.training import (
     build_optimizer,
     build_model,
     evaluate_batch,
+    ExponentialMovingAverage,
     load_checkpoint,
     save_checkpoint,
     seed_everything,
@@ -44,7 +45,7 @@ class TrainingTests(unittest.TestCase):
                 step=config.steps,
             )
             payload = torch.load(path, weights_only=False)
-            self.assertEqual(payload["schema"], "ccb_checkpoint_v1")
+            self.assertEqual(payload["schema"], "ccb_checkpoint_v2")
             self.assertEqual(payload["step"], 20)
 
     def test_resumed_batches_match_uninterrupted_training(self) -> None:
@@ -88,6 +89,18 @@ class TrainingTests(unittest.TestCase):
             )
         for left, right in zip(uninterrupted.parameters(), resumed.parameters()):
             self.assertTrue(torch.equal(left, right))
+
+    def test_ema_is_a_copied_evaluation_model(self) -> None:
+        batch = collate_episodes([AlienGridDomain().generate(depth=5, seed=0)])
+        config = TrainConfig(model="trm_upstream_core", width=16, layers_or_loops=1)
+        model = build_model(config, batch.codec)
+        ema = ExponentialMovingAverage(model, 0.9)
+        original = [item.detach().clone() for item in model.parameters()]
+        with torch.no_grad():
+            next(model.parameters()).add_(1.0)
+        ema.update(model)
+        self.assertTrue(all(torch.equal(old, now) for old, now in zip(original[1:], list(model.parameters())[1:])))
+        self.assertFalse(any(parameter.requires_grad for parameter in ema.evaluation_model.parameters()))
 
 class ResultTests(unittest.TestCase):
     def test_result_artifacts(self) -> None:

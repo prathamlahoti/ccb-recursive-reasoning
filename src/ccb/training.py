@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import copy
 from dataclasses import asdict, dataclass
 from itertools import islice
 from pathlib import Path
@@ -343,29 +344,38 @@ def train_trm_act_batches(
 
 
 class ExponentialMovingAverage:
-    """Minimal EMA used by the CCB adaptation of published TRM training."""
+    """Copied EMA evaluation model; live optimisation weights are untouched."""
 
     def __init__(self, model: nn.Module, decay: float) -> None:
         if not 0.0 < decay < 1.0:
             raise ValueError("EMA decay must lie strictly between zero and one")
         self.decay = decay
-        self.shadow = {
-            name: parameter.detach().clone()
-            for name, parameter in model.named_parameters()
-            if parameter.requires_grad
-        }
+        self.evaluation_model = copy.deepcopy(model).eval()
+        for parameter in self.evaluation_model.parameters():
+            parameter.requires_grad_(False)
 
     @torch.no_grad()
     def update(self, model: nn.Module) -> None:
-        for name, parameter in model.named_parameters():
-            if name in self.shadow:
-                self.shadow[name].lerp_(parameter.detach(), 1.0 - self.decay)
+        live = model.state_dict()
+        averaged = self.evaluation_model.state_dict()
+        for name, value in averaged.items():
+            source = live[name].detach()
+            if torch.is_floating_point(value):
+                value.lerp_(source, 1.0 - self.decay)
+            else:
+                value.copy_(source)
 
     @torch.no_grad()
     def copy_to(self, model: nn.Module) -> None:
-        for name, parameter in model.named_parameters():
-            if name in self.shadow:
-                parameter.copy_(self.shadow[name])
+        model.load_state_dict(self.evaluation_model.state_dict())
+
+    def state_dict(self) -> dict[str, Any]:
+        return {"decay": self.decay, "model_state": self.evaluation_model.state_dict()}
+
+    def load_state_dict(self, state: Mapping[str, Any]) -> None:
+        if float(state["decay"]) != self.decay:
+            raise ValueError("EMA decay does not match checkpoint")
+        self.evaluation_model.load_state_dict(state["model_state"])
 
 
 def jsonl_logger(path: Path) -> Callable[[Mapping[str, Any]], None]:
@@ -386,12 +396,15 @@ def save_checkpoint(
     config: TrainConfig,
     codec: DomainCodec,
     step: int,
+    ema: ExponentialMovingAverage | None = None,
+    act_carry: Any | None = None,
+    dataset_manifest_hash: str | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     torch.save(
         {
-            "schema": "ccb_checkpoint_v1",
+            "schema": "ccb_checkpoint_v2",
             "step": step,
             "config": asdict(config),
             "codec": asdict(codec),
@@ -402,6 +415,9 @@ def save_checkpoint(
             if torch.cuda.is_available()
             else None,
             "python_random_state": random.getstate(),
+            "ema_state": None if ema is None else ema.state_dict(),
+            "act_carry": act_carry,
+            "dataset_manifest_hash": dataset_manifest_hash,
         },
         temporary,
     )
@@ -414,11 +430,13 @@ def load_checkpoint(
     model: nn.Module,
     optimizer: torch.optim.Optimizer,
     device: torch.device | str = "cpu",
+    ema: ExponentialMovingAverage | None = None,
+    return_payload: bool = False,
 ) -> int:
     """Restore model, optimizer, and RNG state; return the completed step."""
 
     payload = torch.load(path, map_location=device, weights_only=False)
-    if payload.get("schema") != "ccb_checkpoint_v1":
+    if payload.get("schema") not in {"ccb_checkpoint_v1", "ccb_checkpoint_v2"}:
         raise ValueError(f"unsupported checkpoint schema in {path}")
     model.load_state_dict(payload["model_state"])
     optimizer.load_state_dict(payload["optimizer_state"])
@@ -427,4 +445,8 @@ def load_checkpoint(
         torch.cuda.set_rng_state_all(payload["cuda_rng_states"])
     if payload.get("python_random_state") is not None:
         random.setstate(payload["python_random_state"])
+    if ema is not None and payload.get("ema_state") is not None:
+        ema.load_state_dict(payload["ema_state"])
+    if return_payload:
+        return int(payload["step"]), payload  # type: ignore[return-value]
     return int(payload["step"])
