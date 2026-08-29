@@ -30,7 +30,6 @@ from ccb.training import (
     save_checkpoint,
     seed_everything,
     train_batches,
-    train_faithful_trm_batches,
 )
 
 
@@ -46,19 +45,17 @@ class ExperimentConfig:
     batch_size: int = 32
     learning_rate: float = 1e-3
     weight_decay: float = 0.0
-    loop_supervision_weight: float = 0.25
+    loop_supervision_weight: float = 0.0
     include_official_evaluation: bool = False
     bootstrap_resamples: int = 2_000
     device: str = "cpu"
     checkpoint_interval_steps: int = 0
-    trm_latent_steps: int = 6
-    trm_refinement_steps: int = 3
-    trm_supervision_steps: int = 16
     ema_decay: float = 0.999
-    trm_evaluation_weights: str = "ema"
     trm_h_cycles: int = 3
     trm_l_cycles: int = 6
     trm_max_depth: int = 100
+    trm_halt_max_steps: int = 4
+    trm_halt_exploration_prob: float = 0.1
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "ExperimentConfig":
@@ -201,7 +198,6 @@ def run_experiment_matrix(
     for plan in plans:
         model_name = str(plan["model"])
         seed = int(plan["seed"])
-        supervision = "dis" if model_name == "dis_trm" else "final"
         train_config = TrainConfig(
             model=model_name,
             width=config.width,
@@ -211,15 +207,12 @@ def run_experiment_matrix(
             steps=config.steps,
             seed=seed,
             loop_supervision_weight=config.loop_supervision_weight,
-            supervision=supervision,
-            trm_latent_steps=config.trm_latent_steps,
-            trm_refinement_steps=config.trm_refinement_steps,
-            trm_supervision_steps=config.trm_supervision_steps,
             ema_decay=config.ema_decay,
-            trm_evaluation_weights=config.trm_evaluation_weights,
             trm_h_cycles=config.trm_h_cycles,
             trm_l_cycles=config.trm_l_cycles,
             trm_max_depth=config.trm_max_depth,
+            trm_halt_max_steps=config.trm_halt_max_steps,
+            trm_halt_exploration_prob=config.trm_halt_exploration_prob,
         )
         run_identity = {
             "experiment": asdict(config),
@@ -266,27 +259,16 @@ def run_experiment_matrix(
                     step=step,
                 )
 
-        if model_name == "trm_faithful":
-            if start_step:
-                raise ValueError("faithful TRM resumption is not implemented yet")
-            optimizer, history = train_faithful_trm_batches(
-                model,  # type: ignore[arg-type]
-                _batch_stream(splits["train"], config, seed),
-                train_config,
-                device=config.device,
-                log_callback=jsonl_logger(run_directory / "train.jsonl"),
-            )
-        else:
-            optimizer, history = train_batches(
-                model,
-                _batch_stream(splits["train"], config, seed),
-                train_config,
-                device=config.device,
-                log_callback=jsonl_logger(run_directory / "train.jsonl"),
-                optimizer=optimizer,
-                start_step=start_step,
-                checkpoint_callback=checkpoint_if_due,
-            )
+        optimizer, history = train_batches(
+            model,
+            _batch_stream(splits["train"], config, seed),
+            train_config,
+            device=config.device,
+            log_callback=jsonl_logger(run_directory / "train.jsonl"),
+            optimizer=optimizer,
+            start_step=start_step,
+            checkpoint_callback=checkpoint_if_due,
+        )
         evaluations = {}
         for split_name in ("validation", "test_depth", "test_strong"):
             evaluations[split_name] = evaluate_model(

@@ -3,7 +3,7 @@
 This intentionally uses the released TRM recurrence: fixed H/L initial
 buffers, one shared reasoning module, ``H_cycles - 1`` detached updates and
 one gradient-bearing update.  It is kept separate from the earlier
-``FaithfulCCBTRM`` prototype in :mod:`ccb.models.baselines`.
+legacy prototype code, which is no longer part of the active model package.
 """
 
 from __future__ import annotations
@@ -74,17 +74,23 @@ class PublishedTRMCCB(nn.Module):
         layers: int = 2,
         expansion: float = 4.0,
         max_depth: int = 100,
+        halt_max_steps: int = 4,
+        halt_exploration_prob: float = 0.1,
     ) -> None:
         super().__init__()
         if width % heads:
             raise ValueError("width must be divisible by heads")
-        if min(h_cycles, l_cycles, layers, max_depth) < 1:
+        if min(h_cycles, l_cycles, layers, max_depth, halt_max_steps) < 1:
             raise ValueError("TRM cycle, layer, and max-depth counts must be positive")
+        if not 0.0 <= halt_exploration_prob <= 1.0:
+            raise ValueError("halt exploration probability must lie in [0, 1]")
         self.codec = codec
         self.width = width
         self.h_cycles = h_cycles
         self.l_cycles = l_cycles
         self.max_depth = max_depth
+        self.halt_max_steps = halt_max_steps
+        self.halt_exploration_prob = halt_exploration_prob
         self.sequence_length = max_depth * codec.state_size
         token_vocab = codec.state_vocab_size * codec.operation_vocab_size
         self.embed_scale = math.sqrt(width)

@@ -15,14 +15,7 @@ from torch.nn import functional as F
 from ccb.encoding import DomainCodec, TransitionBatch
 from ccb.models import (
     DirectTransformer,
-    FaithfulCCBTRM,
-    FastSlowRecurrentModel,
-    LoopedTransformer,
     PublishedTRMCCB,
-    RecurrentBaseline,
-    SocialMessagePassingGNN,
-    StateTransitionRecursiveModel,
-    VanillaTRM,
 )
 from ccb.models.common import ModelOutput
 
@@ -36,16 +29,14 @@ class TrainConfig:
     weight_decay: float = 0.0
     steps: int = 200
     seed: int = 0
-    loop_supervision_weight: float = 0.25
+    loop_supervision_weight: float = 0.0
     supervision: str = "final"
-    trm_latent_steps: int = 6
-    trm_refinement_steps: int = 3
-    trm_supervision_steps: int = 16
     ema_decay: float = 0.999
-    trm_evaluation_weights: str = "ema"
     trm_h_cycles: int = 3
     trm_l_cycles: int = 6
     trm_max_depth: int = 100
+    trm_halt_max_steps: int = 4
+    trm_halt_exploration_prob: float = 0.1
 
 
 def seed_everything(seed: int) -> None:
@@ -67,20 +58,6 @@ def build_model(config: TrainConfig, codec: DomainCodec) -> nn.Module:
     if config.model == "transformer":
         heads = 4 if width % 4 == 0 else 1
         return DirectTransformer(codec, width=width, heads=heads, layers=count)
-    if config.model in {"gru", "lstm"}:
-        return RecurrentBaseline(codec, width=width, layers=count, cell=config.model)
-    if config.model == "looped_transformer":
-        heads = 4 if width % 4 == 0 else 1
-        return LoopedTransformer(codec, width=width, heads=heads, loops=count)
-    if config.model == "trm":
-        return VanillaTRM(codec, width=width, loops=count)
-    if config.model == "trm_faithful":
-        return FaithfulCCBTRM(
-            codec,
-            width=width,
-            latent_steps=config.trm_latent_steps,
-            refinement_steps=config.trm_refinement_steps,
-        )
     if config.model == "trm_upstream_core":
         heads = 4 if width % 4 == 0 else 1
         return PublishedTRMCCB(
@@ -91,17 +68,9 @@ def build_model(config: TrainConfig, codec: DomainCodec) -> nn.Module:
             h_cycles=config.trm_h_cycles,
             l_cycles=config.trm_l_cycles,
             max_depth=config.trm_max_depth,
+            halt_max_steps=config.trm_halt_max_steps,
+            halt_exploration_prob=config.trm_halt_exploration_prob,
         )
-    if config.model == "dis_trm":
-        return VanillaTRM(
-            codec, width=width, loops=count, detach_warmup=False
-        )
-    if config.model == "fast_slow":
-        return FastSlowRecurrentModel(codec, width=width, fast_loops=count)
-    if config.model == "strm":
-        return StateTransitionRecursiveModel(codec, width=width, inner_loops=count)
-    if config.model == "gnn":
-        return SocialMessagePassingGNN(codec, width=width, message_steps=count)
     raise ValueError(f"unknown model: {config.model}")
 
 
@@ -324,71 +293,6 @@ class ExponentialMovingAverage:
         for name, parameter in model.named_parameters():
             if name in self.shadow:
                 parameter.copy_(self.shadow[name])
-
-
-def train_faithful_trm_batches(
-    model: FaithfulCCBTRM,
-    batches: Iterable[TransitionBatch],
-    config: TrainConfig,
-    *,
-    device: torch.device | str = "cpu",
-    log_callback: Callable[[Mapping[str, Any]], None] | None = None,
-) -> tuple[torch.optim.Optimizer, list[dict[str, Any]]]:
-    """TRM's detached deep-supervision training, counted by optimizer update."""
-
-    if config.trm_supervision_steps < 1:
-        raise ValueError("trm_supervision_steps must be positive")
-    if config.trm_evaluation_weights not in {"ema", "raw"}:
-        raise ValueError("trm_evaluation_weights must be 'ema' or 'raw'")
-    model.to(device)
-    optimizer = build_optimizer(model, config)
-    # Construct EMA after device placement; its shadow tensors must share the
-    # model's device for in-place updates during GPU training.
-    ema = ExponentialMovingAverage(model, config.ema_decay)
-    history: list[dict[str, Any]] = []
-    batch_iterator = iter(batches)
-    update = 0
-    while update < config.steps:
-        batch = next(batch_iterator).to(device)
-        answer, latent = model.initial_states(batch)
-        for deep_step in range(1, config.trm_supervision_steps + 1):
-            if update >= config.steps:
-                break
-            model.train()
-            optimizer.zero_grad(set_to_none=True)
-            answer, latent, output, halt_logits = model.refine(batch, answer, latent)
-            transition_matches = (output.logits.argmax(dim=-1) == batch.targets).all(dim=-1)
-            answer_target = (transition_matches | ~batch.step_mask).all(dim=1)
-            halt_loss = F.binary_cross_entropy_with_logits(
-                halt_logits, answer_target.to(dtype=halt_logits.dtype)
-            )
-            loss = supervised_loss(
-                output,
-                batch.targets,
-                loop_supervision_weight=0.0,
-                step_mask=batch.step_mask,
-                supervision="final",
-            ) + 0.5 * halt_loss
-            loss.backward()
-            gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
-            ema.update(model)
-            update += 1
-            record = {
-                "step": update,
-                "loss": float(loss.detach()),
-                "halt_loss": float(halt_loss.detach()),
-                "deep_supervision_step": deep_step,
-                "gradient_norm": float(gradient_norm.detach()),
-            }
-            history.append(record)
-            if log_callback is not None:
-                log_callback(record)
-    # Paper-style evaluation uses stabilizing EMA weights. The raw option is
-    # reserved for diagnostics that distinguish EMA lag from failed learning.
-    if config.trm_evaluation_weights == "ema":
-        ema.copy_to(model)
-    return optimizer, history
 
 
 def jsonl_logger(path: Path) -> Callable[[Mapping[str, Any]], None]:

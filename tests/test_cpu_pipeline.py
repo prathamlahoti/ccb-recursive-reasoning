@@ -101,7 +101,7 @@ class ExperimentLauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config = ExperimentConfig(
                 domain="d1",
-                models=("gru", "dis_trm"),
+                models=("transformer", "trm_upstream_core"),
                 seeds=(2, 5),
                 output_directory=directory,
                 steps=1,
@@ -130,10 +130,10 @@ class ExperimentLauncherTests(unittest.TestCase):
                 "per_depth": {"5": {"final_exact_accuracy": accuracy}},
             }
             results.append(
-                {"model": "gru", "seed": seed, "evaluations": {"validation": evaluation}}
+                {"model": "transformer", "seed": seed, "evaluations": {"validation": evaluation}}
             )
         summary = aggregate_experiment_results(results)
-        split = summary["models"]["gru"]["splits"]["validation"]
+        split = summary["models"]["transformer"]["splits"]["validation"]
         self.assertEqual(split["metrics"]["final_exact_accuracy"]["mean"], 0.5)
         self.assertEqual(
             split["final_exact_accuracy_by_depth"]["5"]["runs"], 2

@@ -8,7 +8,7 @@ from ccb.domains.alien_grid import AlienGridDomain
 from ccb.domains.social_logic import SocialLogicDomain
 from ccb.domains.symbolic_pointers import SymbolicPointersDomain
 from ccb.encoding import collate_episodes
-from ccb.models import DirectTransformer, StateTransitionRecursiveModel
+from ccb.models import DirectTransformer, PublishedTRMCCB
 
 
 class DecodingTests(unittest.TestCase):
@@ -42,10 +42,10 @@ class ComputeTests(unittest.TestCase):
     def test_parameter_and_block_accounting(self) -> None:
         batch = collate_episodes([AlienGridDomain().generate(depth=5, seed=0)])
         transformer = DirectTransformer(batch.codec, width=16, heads=2, layers=2)
-        strm = StateTransitionRecursiveModel(batch.codec, width=16, inner_loops=3)
+        trm = PublishedTRMCCB(batch.codec, width=16, heads=2, layers=1, h_cycles=3, l_cycles=2)
         self.assertGreater(trainable_parameters(transformer), 0)
         self.assertEqual(compute_signature(transformer, depth=5)["block_evaluations"], 2)
-        self.assertEqual(compute_signature(strm, depth=5)["block_evaluations"], 20)
+        self.assertEqual(compute_signature(trm, depth=5)["block_evaluations"], 9)
 
 
 if __name__ == "__main__":

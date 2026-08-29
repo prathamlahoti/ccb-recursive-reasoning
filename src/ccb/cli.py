@@ -24,7 +24,6 @@ from ccb.training import (
     jsonl_logger,
     save_checkpoint,
     seed_everything,
-    train_faithful_trm_batches,
     train_fixed_batch,
 )
 from ccb.structural_presets import build_d1_semantic_structural_splits, build_structural_splits
@@ -67,8 +66,6 @@ def _generate(args: argparse.Namespace) -> int:
 
 
 def _smoke_train(args: argparse.Namespace) -> int:
-    if args.model == "gnn" and args.domain != "d3":
-        raise SystemExit("the gnn model is only valid for d3")
     if min(args.steps, args.width, args.layers_or_loops, args.examples, args.depth) < 1:
         raise SystemExit("all numeric smoke-train arguments must be positive")
     if args.learning_rate <= 0:
@@ -84,29 +81,15 @@ def _smoke_train(args: argparse.Namespace) -> int:
         learning_rate=args.learning_rate,
         steps=args.steps,
         seed=args.seed,
-        supervision="dis" if args.model == "dis_trm" else "final",
-        trm_latent_steps=args.trm_latent_steps,
-        trm_refinement_steps=args.trm_refinement_steps,
-        trm_supervision_steps=args.trm_supervision_steps,
         ema_decay=args.ema_decay,
-        trm_evaluation_weights=args.trm_evaluation_weights,
     )
     model = build_model(config, batch.codec)
     model.to(args.device)
     batch = batch.to(args.device)
     output = Path(args.output)
-    if args.model == "trm_faithful":
-        optimizer, history = train_faithful_trm_batches(
-            model,  # type: ignore[arg-type]
-            [batch] * config.steps,
-            config,
-            device=args.device,
-            log_callback=jsonl_logger(output / "train.jsonl"),
-        )
-    else:
-        optimizer, history = train_fixed_batch(
-            model, batch, config, log_callback=jsonl_logger(output / "train.jsonl")
-        )
+    optimizer, history = train_fixed_batch(
+        model, batch, config, log_callback=jsonl_logger(output / "train.jsonl")
+    )
     metrics = evaluate_batch(model, batch)
     save_checkpoint(
         output / "checkpoint.pt",
@@ -226,7 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--domain", choices=("d1", "d2", "d3"), required=True)
     smoke.add_argument(
         "--model",
-        choices=("transformer", "gru", "lstm", "looped_transformer", "trm", "trm_faithful", "trm_upstream_core", "dis_trm", "fast_slow", "strm", "gnn"),
+        choices=("transformer", "trm_upstream_core"),
         required=True,
     )
     smoke.add_argument("--output", required=True)
@@ -238,11 +221,7 @@ def build_parser() -> argparse.ArgumentParser:
     smoke.add_argument("--depth", type=int, default=4)
     smoke.add_argument("--seed", type=int, default=0)
     smoke.add_argument("--device", default="cpu")
-    smoke.add_argument("--trm-latent-steps", type=int, default=6)
-    smoke.add_argument("--trm-refinement-steps", type=int, default=3)
-    smoke.add_argument("--trm-supervision-steps", type=int, default=16)
     smoke.add_argument("--ema-decay", type=float, default=0.999)
-    smoke.add_argument("--trm-evaluation-weights", choices=("ema", "raw"), default="ema")
     smoke.set_defaults(handler=_smoke_train)
     launch = subparsers.add_parser(
         "launch", help="run a reproducible model-by-seed experiment matrix"
