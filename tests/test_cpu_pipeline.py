@@ -17,6 +17,7 @@ from ccb.evaluation import evaluate_model
 from ccb.experiment import (
     ExperimentConfig,
     _act_batch_stream,
+    _validate_trm_evaluation_depth,
     aggregate_experiment_results,
     run_experiment_matrix,
 )
@@ -89,6 +90,14 @@ class VariableDepthAndEvaluationTests(unittest.TestCase):
         batches = list(islice(_act_batch_stream(episodes, config, seed=7), 4))
         self.assertTrue(all(tuple(batch.operations.shape) == (4, 4) for batch in batches))
         self.assertTrue(any(not bool(batch.step_mask.all()) for batch in batches))
+
+    def test_trm_depth_validation_fails_before_training(self) -> None:
+        config = ExperimentConfig(
+            domain="d1", models=("trm_upstream_core",), trm_max_depth=3
+        )
+        splits = {"validation": self.episodes, "test_depth": self.episodes, "test_strong": self.episodes}
+        with self.assertRaisesRegex(ValueError, "configured 3, required 4"):
+            _validate_trm_evaluation_depth(config, splits)
 
 
 class DeepImprovementTests(unittest.TestCase):

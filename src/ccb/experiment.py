@@ -128,6 +128,25 @@ def _act_batch_stream(episodes: tuple[Any, ...], config: ExperimentConfig, seed:
         yield padded(indices)
 
 
+def _validate_trm_evaluation_depth(
+    config: ExperimentConfig, splits: Mapping[str, tuple[Any, ...]]
+) -> None:
+    """Reject a TRM configuration that cannot encode every requested split."""
+
+    if "trm_upstream_core" not in config.models:
+        return
+    required_depth = max(
+        episode.depth
+        for split_name in ("validation", "test_depth", "test_strong")
+        for episode in splits[split_name]
+    )
+    if config.trm_max_depth < required_depth:
+        raise ValueError(
+            "trm_max_depth must cover every evaluation trace: "
+            f"configured {config.trm_max_depth}, required {required_depth}"
+        )
+
+
 def _environment() -> dict[str, Any]:
     return {
         "python": sys.version,
@@ -224,6 +243,7 @@ def run_experiment_matrix(
         return plans
 
     splits, firewall = build_primary_splits(config.domain)
+    _validate_trm_evaluation_depth(config, splits)
     output_root = Path(config.output_directory).resolve()
     manifest = build_manifest(
         splits,
