@@ -20,6 +20,31 @@ from ccb.models import (
 from ccb.models.common import ModelOutput
 
 
+def stablemax_log_probs(logits: Tensor) -> Tensor:
+    """Released TRM stablemax transform, evaluated in float64 for stability."""
+
+    values = logits.to(torch.float64)
+    transformed = torch.where(values < 0, 1.0 / (1.0 - values + 1e-30), values + 1.0)
+    return torch.log(transformed / transformed.sum(dim=-1, keepdim=True))
+
+
+def trm_sequence_loss(
+    output: ModelOutput, q_halt: Tensor, batch: TransitionBatch
+) -> tuple[Tensor, Tensor, Tensor]:
+    """TRM token loss normalized per example plus the released halt BCE term."""
+
+    labels = batch.targets.reshape(batch.targets.shape[0], -1)
+    valid = batch.step_mask[:, :, None].expand_as(batch.targets).reshape_as(labels)
+    logits = output.logits.reshape(labels.shape[0], labels.shape[1], -1)
+    log_probs = stablemax_log_probs(logits)
+    token_loss = -torch.gather(log_probs, -1, labels.unsqueeze(-1)).squeeze(-1)
+    lm_loss = (token_loss * valid).sum(dim=1) / valid.sum(dim=1).clamp_min(1)
+    with torch.no_grad():
+        correct = ((logits.argmax(dim=-1) == labels) | ~valid).all(dim=1)
+    halt_loss = F.binary_cross_entropy_with_logits(q_halt, correct.to(q_halt.dtype), reduction="none")
+    return (lm_loss + 0.5 * halt_loss).mean(), lm_loss.mean(), halt_loss.mean()
+
+
 @dataclass(frozen=True)
 class TrainConfig:
     model: str
@@ -267,6 +292,54 @@ def train_batches(
             f"batch stream ended after {start_step + len(history)} steps; expected {config.steps}"
         )
     return optimizer, history
+
+
+def train_trm_act_batches(
+    model: PublishedTRMCCB,
+    batches: Iterable[TransitionBatch],
+    config: TrainConfig,
+    *,
+    device: torch.device | str = "cpu",
+    log_callback: Callable[[Mapping[str, Any]], None] | None = None,
+) -> tuple[torch.optim.Optimizer, "ExponentialMovingAverage", list[dict[str, Any]]]:
+    """Train the upstream-derived TRM through its ACT state machine.
+
+    The incoming stream must remain depth-bucketed until every active row has
+    halted. This is enforced by ``PublishedTRMCCB.act_step`` rather than
+    silently resetting recursive state on incompatible sequences.
+    """
+
+    model.to(device)
+    optimizer = build_optimizer(model, config)
+    ema = ExponentialMovingAverage(model, config.ema_decay)
+    iterator = iter(batches)
+    first = next(iterator).to(device)
+    carry = model.initial_act_carry(first)
+    pending = first
+    history: list[dict[str, Any]] = []
+    for step in range(1, config.steps + 1):
+        model.train()
+        optimizer.zero_grad(set_to_none=True)
+        carry, output, (q_halt, _) = model.act_step(carry, pending)
+        loss, lm_loss, halt_loss = trm_sequence_loss(output, q_halt, carry.current_batch)
+        loss.backward()
+        gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+        optimizer.step()
+        ema.update(model)
+        record = {
+            "step": step,
+            "loss": float(loss.detach()),
+            "lm_loss": float(lm_loss.detach()),
+            "halt_loss": float(halt_loss.detach()),
+            "gradient_norm": float(gradient_norm.detach()),
+            "act_mean_steps": float(carry.steps.float().mean()),
+            "act_halted_fraction": float(carry.halted.float().mean()),
+        }
+        history.append(record)
+        if log_callback is not None:
+            log_callback(record)
+        pending = next(iterator).to(device)
+    return optimizer, ema, history
 
 
 class ExponentialMovingAverage:

@@ -54,6 +54,16 @@ class PublishedTRMCarry:
     z_l: Tensor
 
 
+@dataclass(frozen=True)
+class PublishedTRMACTCarry:
+    """Persistent per-example state used by the upstream-style ACT wrapper."""
+
+    inner: PublishedTRMCarry
+    steps: Tensor
+    halted: Tensor
+    current_batch: TransitionBatch
+
+
 class PublishedTRMCCB(nn.Module):
     """Upstream-derived TRM core with an explicit CCB trace-token adapter.
 
@@ -76,6 +86,7 @@ class PublishedTRMCCB(nn.Module):
         max_depth: int = 100,
         halt_max_steps: int = 4,
         halt_exploration_prob: float = 0.1,
+        no_act_continue: bool = True,
     ) -> None:
         super().__init__()
         if width % heads:
@@ -91,6 +102,7 @@ class PublishedTRMCCB(nn.Module):
         self.max_depth = max_depth
         self.halt_max_steps = halt_max_steps
         self.halt_exploration_prob = halt_exploration_prob
+        self.no_act_continue = no_act_continue
         self.sequence_length = max_depth * codec.state_size
         token_vocab = codec.state_vocab_size * codec.operation_vocab_size
         self.embed_scale = math.sqrt(width)
@@ -160,3 +172,63 @@ class PublishedTRMCCB(nn.Module):
     def forward(self, batch: TransitionBatch) -> ModelOutput:
         _, output, _ = self.refine(batch, self.initial_carry(batch))
         return output
+
+    @staticmethod
+    def _replace_halted_rows(
+        previous: TransitionBatch, incoming: TransitionBatch, halted: Tensor
+    ) -> TransitionBatch:
+        """Replace only completed rows, retaining active ACT episodes."""
+
+        if previous.codec != incoming.codec or previous.operations.shape != incoming.operations.shape:
+            raise ValueError("ACT requires depth-bucketed batches with matching codec and shape")
+
+        def rows(old: Tensor, new: Tensor) -> Tensor:
+            return torch.where(halted.view((-1,) + (1,) * (old.ndim - 1)), new, old)
+
+        return TransitionBatch(
+            previous.domain,
+            rows(previous.initial_state, incoming.initial_state),
+            rows(previous.operations, incoming.operations),
+            rows(previous.targets, incoming.targets),
+            previous.codec,
+            rows(previous.step_mask, incoming.step_mask),
+            rows(previous.depths, incoming.depths),
+        )
+
+    def initial_act_carry(self, batch: TransitionBatch) -> PublishedTRMACTCarry:
+        size = batch.initial_state.shape[0]
+        return PublishedTRMACTCarry(
+            self.initial_carry(batch),
+            torch.zeros(size, dtype=torch.int32, device=batch.initial_state.device),
+            torch.ones(size, dtype=torch.bool, device=batch.initial_state.device),
+            batch,
+        )
+
+    def act_step(
+        self, carry: PublishedTRMACTCarry, incoming: TransitionBatch
+    ) -> tuple[PublishedTRMACTCarry, ModelOutput, tuple[Tensor, Tensor]]:
+        """One outer ACT decision; evaluation deliberately runs to max steps."""
+
+        current = self._replace_halted_rows(carry.current_batch, incoming, carry.halted)
+        reset = carry.halted[:, None, None]
+        fresh = self.initial_carry(current)
+        inner = PublishedTRMCarry(
+            torch.where(reset, fresh.z_h, carry.inner.z_h),
+            torch.where(reset, fresh.z_l, carry.inner.z_l),
+        )
+        new_inner, output, q_values = self.refine(current, inner)
+        q_halt, q_continue = q_values
+        with torch.no_grad():
+            steps = torch.where(carry.halted, torch.zeros_like(carry.steps), carry.steps) + 1
+            last = steps >= self.halt_max_steps
+            halted = last
+            if self.training and self.halt_max_steps > 1:
+                halted = halted | (q_halt > 0 if self.no_act_continue else q_halt > q_continue)
+                exploration = torch.rand_like(q_halt) < self.halt_exploration_prob
+                minimum = torch.where(
+                    exploration,
+                    torch.randint(2, self.halt_max_steps + 1, steps.shape, device=steps.device),
+                    torch.ones_like(steps),
+                )
+                halted = halted & (steps >= minimum)
+        return PublishedTRMACTCarry(new_inner, steps, halted, current), output, q_values

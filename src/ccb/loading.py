@@ -24,7 +24,12 @@ class EpisodeDataset(Dataset[Episode[Any, Any]]):
 
 
 class CodecBatchSampler(Sampler[list[int]]):
-    """Deterministic shuffled batches that never mix incompatible D3 sizes."""
+    """Deterministic batches with one codec and one trace length.
+
+    TRM's ACT carry persists across optimizer updates, so every active row must
+    retain an identically shaped sequence tensor. Grouping by depth is therefore
+    a correctness condition, not merely a padding optimisation.
+    """
 
     def __init__(
         self,
@@ -41,7 +46,7 @@ class CodecBatchSampler(Sampler[list[int]]):
         self.seed = seed
         groups: dict[object, list[int]] = {}
         for index, episode in enumerate(episodes):
-            groups.setdefault(codec_for(episode), []).append(index)
+            groups.setdefault((codec_for(episode), episode.depth), []).append(index)
         self.groups = tuple(groups[key] for key in sorted(groups, key=repr))
 
     def __iter__(self) -> Iterator[list[int]]:

@@ -50,6 +50,30 @@ class ModelTests(unittest.TestCase):
         self.assertFalse(carry.z_l.requires_grad)
         self.assertEqual(tuple(output.logits.shape), (2, 5, 9, 9))
 
+    def test_act_state_retains_active_rows_and_resets_halted_rows(self) -> None:
+        model = PublishedTRMCCB(
+            self.batch.codec,
+            width=16,
+            heads=2,
+            layers=1,
+            h_cycles=1,
+            l_cycles=1,
+            halt_max_steps=3,
+            halt_exploration_prob=0.0,
+        )
+        model.train()
+        carry = model.initial_act_carry(self.batch)
+        carry, _, _ = model.act_step(carry, self.batch)
+        self.assertTrue(torch.equal(carry.steps, torch.ones_like(carry.steps)))
+        carry = replace(carry, halted=torch.tensor([True, False]))
+        updated_initial = self.batch.initial_state.clone()
+        updated_initial[0] = torch.roll(updated_initial[0], 1)
+        incoming = replace(self.batch, initial_state=updated_initial)
+        carry, _, _ = model.act_step(carry, incoming)
+        self.assertTrue(torch.equal(carry.current_batch.initial_state[0], updated_initial[0]))
+        self.assertTrue(torch.equal(carry.current_batch.initial_state[1], self.batch.initial_state[1]))
+        self.assertEqual(carry.steps.tolist(), [1, 2])
+
 
 if __name__ == "__main__":
     unittest.main()
