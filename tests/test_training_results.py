@@ -17,6 +17,7 @@ from ccb.training import (
     save_checkpoint,
     seed_everything,
     train_batches,
+    train_trm_act_batches,
     train_fixed_batch,
 )
 
@@ -101,6 +102,45 @@ class TrainingTests(unittest.TestCase):
         ema.update(model)
         self.assertTrue(all(torch.equal(old, now) for old, now in zip(original[1:], list(model.parameters())[1:])))
         self.assertFalse(any(parameter.requires_grad for parameter in ema.evaluation_model.parameters()))
+
+    def test_act_resume_matches_uninterrupted_training(self) -> None:
+        batch = collate_episodes([AlienGridDomain().generate(depth=5, seed=seed) for seed in range(2)])
+        full = TrainConfig(
+            model="trm_upstream_core", width=16, layers_or_loops=1,
+            learning_rate=0.003, steps=4, seed=13, trm_h_cycles=1,
+            trm_l_cycles=1, trm_halt_max_steps=3, trm_halt_exploration_prob=0.0,
+            ema_decay=0.9,
+        )
+        partial = TrainConfig(**{**full.__dict__, "steps": 2})
+        seed_everything(13)
+        uninterrupted = build_model(full, batch.codec)
+        _, full_ema, _, _ = train_trm_act_batches(uninterrupted, [batch] * 6, full)
+        seed_everything(13)
+        interrupted = build_model(partial, batch.codec)
+        checkpoint_state = {}
+        def save_state(step, model, optimizer, ema, carry, pending):
+            checkpoint_state.update(step=step, optimizer=optimizer, ema=ema, act_state=(carry, pending))
+        _, _, _, _ = train_trm_act_batches(
+            interrupted, [batch] * 6, partial, checkpoint_callback=save_state
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "act.pt"
+            save_checkpoint(path, model=interrupted, optimizer=checkpoint_state["optimizer"],
+                            config=partial, codec=batch.codec, step=checkpoint_state["step"],
+                            ema=checkpoint_state["ema"], act_carry=checkpoint_state["act_state"])
+            resumed = build_model(full, batch.codec)
+            resumed_optimizer = build_optimizer(resumed, full)
+            resumed_ema = ExponentialMovingAverage(resumed, full.ema_decay)
+            start, payload = load_checkpoint(path, model=resumed, optimizer=resumed_optimizer,
+                                             ema=resumed_ema, return_payload=True)
+            _, final_ema, _, _ = train_trm_act_batches(
+                resumed, [batch] * 6, full, optimizer=resumed_optimizer, ema=resumed_ema,
+                act_state=payload["act_carry"], start_step=start,
+            )
+        for left, right in zip(uninterrupted.parameters(), resumed.parameters()):
+            self.assertTrue(torch.equal(left, right))
+        for left, right in zip(full_ema.evaluation_model.parameters(), final_ema.evaluation_model.parameters()):
+            self.assertTrue(torch.equal(left, right))
 
 class ResultTests(unittest.TestCase):
     def test_result_artifacts(self) -> None:

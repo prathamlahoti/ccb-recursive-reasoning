@@ -302,7 +302,15 @@ def train_trm_act_batches(
     *,
     device: torch.device | str = "cpu",
     log_callback: Callable[[Mapping[str, Any]], None] | None = None,
-) -> tuple[torch.optim.Optimizer, "ExponentialMovingAverage", list[dict[str, Any]]]:
+    optimizer: torch.optim.Optimizer | None = None,
+    ema: "ExponentialMovingAverage" | None = None,
+    act_state: tuple[Any, TransitionBatch] | None = None,
+    start_step: int = 0,
+    checkpoint_callback: Callable[
+        [int, nn.Module, torch.optim.Optimizer, "ExponentialMovingAverage", Any, TransitionBatch], None
+    ]
+    | None = None,
+) -> tuple[torch.optim.Optimizer, "ExponentialMovingAverage", tuple[Any, TransitionBatch], list[dict[str, Any]]]:
     """Train the upstream-derived TRM through its ACT state machine.
 
     The incoming stream must remain depth-bucketed until every active row has
@@ -310,15 +318,22 @@ def train_trm_act_batches(
     silently resetting recursive state on incompatible sequences.
     """
 
+    if start_step < 0 or start_step > config.steps:
+        raise ValueError("start_step must be within [0, config.steps]")
     model.to(device)
-    optimizer = build_optimizer(model, config)
-    ema = ExponentialMovingAverage(model, config.ema_decay)
-    iterator = iter(batches)
-    first = next(iterator).to(device)
-    carry = model.initial_act_carry(first)
-    pending = first
+    if optimizer is None:
+        optimizer = build_optimizer(model, config)
+    if ema is None:
+        ema = ExponentialMovingAverage(model, config.ema_decay)
+    iterator = islice(iter(batches), 0 if act_state is None else start_step + 1, None)
+    if act_state is None:
+        first = next(iterator).to(device)
+        carry = model.initial_act_carry(first)
+        pending = first
+    else:
+        carry, pending = act_state
     history: list[dict[str, Any]] = []
-    for step in range(1, config.steps + 1):
+    for step in range(start_step + 1, config.steps + 1):
         model.train()
         optimizer.zero_grad(set_to_none=True)
         carry, output, (q_halt, _) = model.act_step(carry, pending)
@@ -340,7 +355,9 @@ def train_trm_act_batches(
         if log_callback is not None:
             log_callback(record)
         pending = next(iterator).to(device)
-    return optimizer, ema, history
+        if checkpoint_callback is not None:
+            checkpoint_callback(step, model, optimizer, ema, carry, pending)
+    return optimizer, ema, (carry, pending), history
 
 
 class ExponentialMovingAverage:
