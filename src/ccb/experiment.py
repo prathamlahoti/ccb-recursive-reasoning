@@ -25,11 +25,13 @@ from ccb.training import (
     TrainConfig,
     build_optimizer,
     build_model,
+    ExponentialMovingAverage,
     jsonl_logger,
     load_checkpoint,
     save_checkpoint,
     seed_everything,
     train_batches,
+    train_trm_act_batches,
 )
 
 
@@ -83,6 +85,15 @@ def _batch_stream(episodes: tuple[Any, ...], config: ExperimentConfig, seed: int
         for epoch in range(config.steps)
     )
     return chain.from_iterable(epochs)
+
+
+def _act_batch_stream(episodes: tuple[Any, ...], config: ExperimentConfig, seed: int):
+    """Repeat each depth bucket through its maximum ACT horizon before switching."""
+
+    for epoch in range(config.steps):
+        for batch in make_dataloader(episodes, batch_size=config.batch_size, shuffle=True, seed=seed + epoch):
+            for _ in range(config.trm_halt_max_steps):
+                yield batch
 
 
 def _environment() -> dict[str, Any]:
@@ -235,10 +246,20 @@ def run_experiment_matrix(
         checkpoint_path = run_directory / "checkpoint.pt"
         optimizer = build_optimizer(model, train_config)
         start_step = 0
+        ema: ExponentialMovingAverage | None = None
+        act_state = None
         if checkpoint_path.exists():
-            start_step = load_checkpoint(
-                checkpoint_path, model=model, optimizer=optimizer, device=config.device
-            )
+            if model_name == "trm_upstream_core":
+                ema = ExponentialMovingAverage(model, config.ema_decay)
+                start_step, checkpoint_payload = load_checkpoint(
+                    checkpoint_path, model=model, optimizer=optimizer, device=config.device,
+                    ema=ema, return_payload=True,
+                )
+                act_state = checkpoint_payload.get("act_carry")
+            else:
+                start_step = load_checkpoint(
+                    checkpoint_path, model=model, optimizer=optimizer, device=config.device
+                )
 
         def checkpoint_if_due(
             step: int,
@@ -259,20 +280,38 @@ def run_experiment_matrix(
                     step=step,
                 )
 
-        optimizer, history = train_batches(
-            model,
-            _batch_stream(splits["train"], config, seed),
-            train_config,
-            device=config.device,
-            log_callback=jsonl_logger(run_directory / "train.jsonl"),
-            optimizer=optimizer,
-            start_step=start_step,
-            checkpoint_callback=checkpoint_if_due,
-        )
+        if model_name == "trm_upstream_core":
+            def act_checkpoint_if_due(step, current_model, current_optimizer, current_ema, carry, pending):
+                if config.checkpoint_interval_steps and step % config.checkpoint_interval_steps == 0:
+                    save_checkpoint(
+                        checkpoint_path, model=current_model, optimizer=current_optimizer,
+                        config=train_config, codec=codec, step=step, ema=current_ema,
+                        act_carry=(carry, pending), dataset_manifest_hash=manifest["manifest_hash"],
+                    )
+
+            optimizer, ema, _, history = train_trm_act_batches(
+                model, _act_batch_stream(splits["train"], config, seed), train_config,
+                device=config.device, log_callback=jsonl_logger(run_directory / "train.jsonl"),
+                optimizer=optimizer, ema=ema, act_state=act_state, start_step=start_step,
+                checkpoint_callback=act_checkpoint_if_due,
+            )
+            evaluation_model = ema.evaluation_model
+        else:
+            optimizer, history = train_batches(
+                model,
+                _batch_stream(splits["train"], config, seed),
+                train_config,
+                device=config.device,
+                log_callback=jsonl_logger(run_directory / "train.jsonl"),
+                optimizer=optimizer,
+                start_step=start_step,
+                checkpoint_callback=checkpoint_if_due,
+            )
+            evaluation_model = model
         evaluations = {}
         for split_name in ("validation", "test_depth", "test_strong"):
             evaluations[split_name] = evaluate_model(
-                model,
+                evaluation_model,
                 make_dataloader(
                     splits[split_name], batch_size=config.batch_size, shuffle=False
                 ),
@@ -282,7 +321,7 @@ def run_experiment_matrix(
             )
         if config.include_official_evaluation:
             evaluations["official_test"] = evaluate_model(
-                model,
+                    evaluation_model,
                 make_dataloader(
                     load_official_episodes(config.domain),
                     batch_size=config.batch_size,

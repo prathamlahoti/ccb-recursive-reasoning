@@ -15,8 +15,8 @@ from ccb.records import Episode
 
 
 PRIMARY_SPLITS = (
-    SplitConfig("train", tuple(range(1, 21)), 100, 10_000_000),
-    SplitConfig("validation", tuple(range(1, 21)), 25, 20_000_000),
+    SplitConfig("train", (5, 10, 15, 20), 100, 10_000_000),
+    SplitConfig("validation", (5, 10, 15, 20), 25, 20_000_000),
     SplitConfig("test_depth", (25, 30, 35, 40, 45, 50), 100, 30_000_000),
     SplitConfig("test_strong", (60, 80, 100), 100, 40_000_000),
 )

@@ -170,7 +170,25 @@ class PublishedTRMCCB(nn.Module):
         )
 
     def forward(self, batch: TransitionBatch) -> ModelOutput:
-        _, output, _ = self.refine(batch, self.initial_carry(batch))
+        if self.training:
+            _, output, _ = self.refine(batch, self.initial_carry(batch))
+            return output
+        return self.evaluate_act(batch)
+
+    @torch.no_grad()
+    def evaluate_act(self, batch: TransitionBatch) -> ModelOutput:
+        """Published-style evaluation: always execute the maximum ACT steps."""
+
+        was_training = self.training
+        self.eval()
+        carry = self.initial_act_carry(batch)
+        output: ModelOutput | None = None
+        for _ in range(self.halt_max_steps):
+            carry, output, _ = self.act_step(carry, batch)
+        if was_training:
+            self.train()
+        if output is None:
+            raise RuntimeError("halt_max_steps must be positive")
         return output
 
     @staticmethod
@@ -179,8 +197,12 @@ class PublishedTRMCCB(nn.Module):
     ) -> TransitionBatch:
         """Replace only completed rows, retaining active ACT episodes."""
 
-        if previous.codec != incoming.codec or previous.operations.shape != incoming.operations.shape:
+        if previous.codec != incoming.codec:
+            raise ValueError("ACT cannot mix incompatible CCB codecs")
+        if previous.operations.shape != incoming.operations.shape and not bool(halted.all()):
             raise ValueError("ACT requires depth-bucketed batches with matching codec and shape")
+        if previous.operations.shape != incoming.operations.shape:
+            return incoming
 
         def rows(old: Tensor, new: Tensor) -> Tensor:
             return torch.where(halted.view((-1,) + (1,) * (old.ndim - 1)), new, old)
@@ -212,10 +234,13 @@ class PublishedTRMCCB(nn.Module):
         current = self._replace_halted_rows(carry.current_batch, incoming, carry.halted)
         reset = carry.halted[:, None, None]
         fresh = self.initial_carry(current)
-        inner = PublishedTRMCarry(
-            torch.where(reset, fresh.z_h, carry.inner.z_h),
-            torch.where(reset, fresh.z_l, carry.inner.z_l),
-        )
+        if carry.inner.z_h.shape != fresh.z_h.shape:
+            inner = fresh
+        else:
+            inner = PublishedTRMCarry(
+                torch.where(reset, fresh.z_h, carry.inner.z_h),
+                torch.where(reset, fresh.z_l, carry.inner.z_l),
+            )
         new_inner, output, q_values = self.refine(current, inner)
         q_halt, q_continue = q_values
         with torch.no_grad():

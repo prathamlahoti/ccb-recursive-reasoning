@@ -1,0 +1,22 @@
+{
+  "domain": "d1",
+  "models": ["trm_upstream_core"],
+  "seeds": [17],
+  "output_directory": "runs/d1_trm_act_calibration_v1",
+  "width": 32,
+  "layers_or_loops": 1,
+  "steps": 1000,
+  "batch_size": 64,
+  "learning_rate": 0.003,
+  "weight_decay": 0.0,
+  "checkpoint_interval_steps": 50,
+  "bootstrap_resamples": 200,
+  "include_official_evaluation": false,
+  "device": "cuda",
+  "ema_decay": 0.999,
+  "trm_h_cycles": 3,
+  "trm_l_cycles": 6,
+  "trm_max_depth": 50,
+  "trm_halt_max_steps": 3,
+  "trm_halt_exploration_prob": 0.1
+}
