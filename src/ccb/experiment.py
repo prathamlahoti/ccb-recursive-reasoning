@@ -14,7 +14,7 @@ import torch
 from ccb.compute import trainable_parameters
 from ccb.audits import dataset_shortcut_audit
 from ccb.dataset import build_manifest, rehash_manifest, write_manifest
-from ccb.encoding import codec_for
+from ccb.encoding import TransitionBatch, codec_for, collate_episodes
 from ccb.evaluation import evaluate_model
 from ccb.loading import make_dataloader
 from ccb.official import OFFICIAL_COMMIT, load_official_episodes
@@ -88,12 +88,44 @@ def _batch_stream(episodes: tuple[Any, ...], config: ExperimentConfig, seed: int
 
 
 def _act_batch_stream(episodes: tuple[Any, ...], config: ExperimentConfig, seed: int):
-    """Repeat each depth bucket through its maximum ACT horizon before switching."""
+    """Provide ACT with a perpetually fixed-shape stream of fresh episodes.
 
-    for epoch in range(config.steps):
-        for batch in make_dataloader(episodes, batch_size=config.batch_size, shuffle=True, seed=seed + epoch):
-            for _ in range(config.trm_halt_max_steps):
-                yield batch
+    ACT carries state per row across optimiser steps.  Consequently, it must
+    never encounter a final short batch or a depth-dependent tensor shape.  We
+    sample complete batches with replacement between epochs and pad every trace
+    to the largest *training* depth.  Individual valid lengths remain in
+    ``step_mask`` and are the only positions included by attention/loss.
+    """
+
+    if len(episodes) < config.batch_size:
+        raise ValueError("ACT training requires at least one full batch of episodes")
+    fixed_depth = max(episode.depth for episode in episodes)
+    generator = torch.Generator().manual_seed(seed)
+    order = torch.randperm(len(episodes), generator=generator).tolist()
+    cursor = 0
+
+    def padded(indices: list[int]) -> TransitionBatch:
+        batch = collate_episodes([episodes[index] for index in indices])
+        padding = fixed_depth - batch.operations.shape[1]
+        if padding == 0:
+            return batch
+        return TransitionBatch(
+            batch.domain,
+            batch.initial_state,
+            torch.nn.functional.pad(batch.operations, (0, padding)),
+            torch.nn.functional.pad(batch.targets, (0, 0, 0, padding)),
+            batch.codec,
+            torch.nn.functional.pad(batch.step_mask, (0, padding)),
+            batch.depths,
+        )
+
+    while True:
+        if cursor + config.batch_size > len(order):
+            order = torch.randperm(len(episodes), generator=generator).tolist()
+            cursor = 0
+        indices = order[cursor : cursor + config.batch_size]
+        cursor += config.batch_size
+        yield padded(indices)
 
 
 def _environment() -> dict[str, Any]:

@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from itertools import islice
 from pathlib import Path
 
 import torch
@@ -15,6 +16,7 @@ from ccb.encoding import collate_episodes
 from ccb.evaluation import evaluate_model
 from ccb.experiment import (
     ExperimentConfig,
+    _act_batch_stream,
     aggregate_experiment_results,
     run_experiment_matrix,
 )
@@ -75,6 +77,18 @@ class VariableDepthAndEvaluationTests(unittest.TestCase):
         self.assertEqual(set(report["per_depth"]), {"2", "4"})
         self.assertEqual(report["overall"]["final_exact_accuracy"], 1.0)
         self.assertEqual(report["overall"]["trace_exact_accuracy"], 1.0)
+
+    def test_act_stream_has_fixed_full_shape_with_variable_depth_examples(self) -> None:
+        generator = AlienGridDomain().generate
+        episodes = tuple(
+            generator(depth=2 if seed % 2 else 4, seed=100 + seed) for seed in range(8)
+        )
+        config = ExperimentConfig(
+            domain="d1", models=("trm_upstream_core",), batch_size=4, steps=4
+        )
+        batches = list(islice(_act_batch_stream(episodes, config, seed=7), 4))
+        self.assertTrue(all(tuple(batch.operations.shape) == (4, 4) for batch in batches))
+        self.assertTrue(any(not bool(batch.step_mask.all()) for batch in batches))
 
 
 class DeepImprovementTests(unittest.TestCase):
