@@ -231,6 +231,14 @@ class PublishedTRMCCB(nn.Module):
     ) -> tuple[PublishedTRMACTCarry, ModelOutput, tuple[Tensor, Tensor]]:
         """One outer ACT decision; evaluation deliberately runs to max steps."""
 
+        # A smaller final DataLoader batch has a different leading dimension.
+        # It cannot share per-row ACT state with the preceding batch, even when
+        # its trace depth is identical.  A boundary is valid only after every
+        # old row has halted; then start a fresh, correctly sized carry.
+        if carry.current_batch.operations.shape != incoming.operations.shape:
+            if not bool(carry.halted.all()):
+                raise ValueError("ACT cannot switch batch shape before every row halts")
+            carry = self.initial_act_carry(incoming)
         current = self._replace_halted_rows(carry.current_batch, incoming, carry.halted)
         reset = carry.halted[:, None, None]
         fresh = self.initial_carry(current)

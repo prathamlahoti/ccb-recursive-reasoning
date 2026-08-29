@@ -74,6 +74,30 @@ class ModelTests(unittest.TestCase):
         self.assertTrue(torch.equal(carry.current_batch.initial_state[1], self.batch.initial_state[1]))
         self.assertEqual(carry.steps.tolist(), [1, 2])
 
+    def test_act_resets_after_a_short_final_batch(self) -> None:
+        """A 64-row carry must not leak into a smaller final DataLoader batch."""
+
+        model = PublishedTRMCCB(
+            self.batch.codec,
+            width=16,
+            heads=2,
+            layers=1,
+            h_cycles=1,
+            l_cycles=1,
+            halt_max_steps=3,
+            halt_exploration_prob=0.0,
+        )
+        model.train()
+        carry = model.initial_act_carry(self.batch)
+        carry = replace(carry, halted=torch.ones(2, dtype=torch.bool))
+        short_batch = collate_episodes([AlienGridDomain().generate(depth=5, seed=99)])
+        carry, output, (q_halt, q_continue) = model.act_step(carry, short_batch)
+        self.assertEqual(carry.steps.tolist(), [1])
+        self.assertEqual(tuple(carry.halted.shape), (1,))
+        self.assertEqual(tuple(output.logits.shape), (1, 5, 9, 9))
+        self.assertEqual(tuple(q_halt.shape), (1,))
+        self.assertEqual(tuple(q_continue.shape), (1,))
+
 
 if __name__ == "__main__":
     unittest.main()
