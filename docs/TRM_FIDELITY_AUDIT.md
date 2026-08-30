@@ -63,3 +63,22 @@ control isolates the failure to this adapter/training recipe, not to CCB data.
 
 Until these steps are complete, do not call `PublishedTRMCCB` a reproduction,
 an upstream-faithful model, or TRM evidence.
+
+## Implementation status
+
+The first replacement milestone is complete:
+
+- [`official_trm_core.py`](../src/ccb/models/official_trm_core.py) is a
+  mechanical local port of the pinned official no-puzzle-embedding core and
+  ACT wrapper.
+- [`verify_trm_fidelity.py`](../scripts/verify_trm_fidelity.py) loads the
+  official state dict into that core and verifies exact logits, recurrent
+  carry, Q logits, and parameter gradients on a fixed float32 token batch.
+- [`official_trm_ccb.py`](../src/ccb/models/official_trm_ccb.py) supplies the
+  only CCB-specific boundary: target-free initial-state tokens, operation
+  tokens, and positioned query slots whose logits are read as CCB state cells.
+
+The core-equivalence check and the CCB target-leakage/output-shape unit test
+pass locally. The adapter has not yet been connected to a faithful CCB loss,
+ACT loss head, official optimizer schedule, or experiment launcher. Therefore
+it remains **CPU-verified integration work**, not a GPU-ready model.

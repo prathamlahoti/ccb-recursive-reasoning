@@ -6,7 +6,7 @@ from torch.nn import functional as F
 
 from ccb.domains.alien_grid import AlienGridDomain
 from ccb.encoding import collate_episodes
-from ccb.models import DirectTransformer, PublishedTRMCCB
+from ccb.models import DirectTransformer, OfficialTRMCCBAdapter, PublishedTRMCCB
 
 
 class ModelTests(unittest.TestCase):
@@ -97,6 +97,24 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(tuple(output.logits.shape), (1, 5, 9, 9))
         self.assertEqual(tuple(q_halt.shape), (1,))
         self.assertEqual(tuple(q_continue.shape), (1,))
+
+    def test_official_core_ccb_adapter_is_target_free_and_shapes_outputs(self) -> None:
+        model = OfficialTRMCCBAdapter(
+            self.batch.codec,
+            max_depth=5,
+            hidden_size=32,
+            num_heads=4,
+            l_layers=1,
+            h_cycles=1,
+            l_cycles=1,
+            halt_max_steps=1,
+        )
+        altered = replace(self.batch, targets=(self.batch.targets + 1) % 9)
+        self.assertTrue(torch.equal(model.input_tokens(self.batch), model.input_tokens(altered)))
+        model.eval()
+        with torch.no_grad():
+            output = model(self.batch)
+        self.assertEqual(tuple(output.logits.shape), (2, 5, 9, 9))
 
 
 if __name__ == "__main__":
