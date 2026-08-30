@@ -6,6 +6,7 @@ import json
 import shutil
 import sys
 import traceback
+from dataclasses import asdict
 from pathlib import Path
 
 
@@ -49,7 +50,7 @@ atomic_json(
         "schema": "ccb_kaggle_fit_gate_v1",
         "source_commit": SOURCE_COMMIT,
         "config": json.loads(config_path.read_text(encoding="utf-8")),
-        "official_d1_check": verify_official_records("d1"),
+        "official_d1_check": asdict(verify_official_records("d1")),
     },
 )
 
