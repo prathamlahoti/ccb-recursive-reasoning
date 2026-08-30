@@ -55,6 +55,8 @@ class FitGateConfig:
     lr_warmup_steps: int = 0
     lr_min_ratio: float = 0.0
     official_trm_forward_dtype: str = "float32"
+    evaluate_ema: bool = True
+    pass_threshold: float = 0.99
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "FitGateConfig":
@@ -80,17 +82,25 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
     """
 
     trm_models = {"trm_upstream_core", "official_trm_ccb"}
-    if config.model not in {"transformer", *trm_models}:
-        raise ValueError("fit gate supports transformer, trm_upstream_core, or official_trm_ccb")
+    if config.model not in {"transformer", "ccb_token_transformer", *trm_models}:
+        raise ValueError(
+            "fit gate supports transformer, ccb_token_transformer, "
+            "trm_upstream_core, or official_trm_ccb"
+        )
     if config.trm_training_mode not in {"act", "one_step_supervised"}:
         raise ValueError("trm_training_mode must be act or one_step_supervised")
-    if config.model == "transformer" and config.trm_training_mode != "act":
+    if (
+        config.model in {"transformer", "ccb_token_transformer"}
+        and config.trm_training_mode != "act"
+    ):
         raise ValueError("one_step_supervised is only valid for TRM models")
     if min(config.examples, config.depth, config.steps, config.width) < 1:
         raise ValueError("examples, depth, steps, and width must be positive")
     if config.learning_rate <= 0:
         raise ValueError("learning_rate must be positive")
-    if config.model in trm_models and config.trm_max_depth < config.depth:
+    if not 0 < config.pass_threshold <= 1:
+        raise ValueError("pass_threshold must lie in (0, 1]")
+    if config.model in {*trm_models, "ccb_token_transformer"} and config.trm_max_depth < config.depth:
         raise ValueError("trm_max_depth must be at least the fit-gate depth")
     if config.trm_training_mode == "one_step_supervised" and config.trm_halt_max_steps != 1:
         raise ValueError("one_step_supervised requires trm_halt_max_steps=1")
@@ -160,7 +170,9 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
             checkpoint_callback=checkpoint_if_due,
         )
         final_live = evaluate_batch(model, batch)
-        final_ema = evaluate_batch(ema.evaluation_model, batch)
+        final_ema = (
+            evaluate_batch(ema.evaluation_model, batch) if config.evaluate_ema else None
+        )
     else:
         def checkpoint_if_due(step, current_model, optimizer) -> None:
             if config.checkpoint_interval_steps and step % config.checkpoint_interval_steps == 0:
@@ -184,14 +196,20 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
         final_live = evaluate_batch(model, batch)
         final_ema = None
 
+    passed = (
+        final_live["final_exact_accuracy"] >= config.pass_threshold
+        and final_live["trace_exact_accuracy"] >= config.pass_threshold
+    )
     result = {
-        "schema": "ccb_fit_gate_v1",
+        "schema": "ccb_fit_gate_v2",
         "purpose": "fixed-data training-path diagnostic; not a benchmark result",
         "config": asdict(config),
         "firewall_safe": firewall.audit(episodes).safe,
         "initial_live": initial_live,
         "final_live": final_live,
         "final_ema": final_ema,
+        "pass_threshold": config.pass_threshold,
+        "passed": passed,
         "first_training_record": history[0],
         "last_training_record": history[-1],
     }

@@ -61,8 +61,9 @@ with the frontier LLMs in the CCB paper.
    stablemax loss, optimizer schedule, and EMA behavior. The CCB I/O adapter
    is the only permitted adaptation. See
    [the fidelity audit](TRM_FIDELITY_AUDIT.md): `PublishedTRMCCB` does not meet
-   this gate; `official_trm_ccb` is the verified replacement pending its fit
-   gate.
+   this gate; `official_trm_ccb` with the collision-free interface in the
+   [corrected fit ladder](CORRECTED_FIT_LADDER.md) is the verified replacement
+   pending its sequential fit gates.
 4. **Pass deterministic gates.** Unit tests for no target leakage, exact
    upstream recurrence semantics, loss masking/normalization, ACT reset,
    copied EMA, and checkpoint-resume; then an ACT-enabled fixed-batch fit

@@ -39,6 +39,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 
 - [Project method](docs/PROJECT_METHOD.md)
 - [TRM fidelity audit](docs/TRM_FIDELITY_AUDIT.md)
+- [Corrected fit ladder](docs/CORRECTED_FIT_LADDER.md)
 - [Official data provenance](data/ccb_official/SOURCE.md)
 
 ## Repository layout

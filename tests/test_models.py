@@ -6,7 +6,12 @@ from torch.nn import functional as F
 
 from ccb.domains.alien_grid import AlienGridDomain
 from ccb.encoding import collate_episodes
-from ccb.models import DirectTransformer, OfficialTRMCCBAdapter, PublishedTRMCCB
+from ccb.models import (
+    CCBTokenTransformer,
+    DirectTransformer,
+    OfficialTRMCCBAdapter,
+    PublishedTRMCCB,
+)
 
 
 class ModelTests(unittest.TestCase):
@@ -114,6 +119,74 @@ class ModelTests(unittest.TestCase):
         model.eval()
         with torch.no_grad():
             output = model(self.batch)
+        self.assertEqual(tuple(output.logits.shape), (2, 5, 9, 9))
+
+    def test_official_ccb_vocabulary_namespaces_and_padding_are_disjoint(self) -> None:
+        mixed = collate_episodes(
+            [
+                AlienGridDomain().generate(depth=2, seed=20),
+                AlienGridDomain().generate(depth=5, seed=21),
+            ]
+        )
+        model = OfficialTRMCCBAdapter(
+            mixed.codec,
+            max_depth=5,
+            hidden_size=32,
+            num_heads=4,
+            l_layers=1,
+            h_cycles=1,
+            l_cycles=1,
+            halt_max_steps=1,
+        )
+        tokens = model.input_tokens(mixed)
+        layout = model.layout
+        special = {
+            layout.bos_token,
+            layout.ops_token,
+            layout.output_token,
+            layout.mask_token,
+            layout.pad_token,
+        }
+        self.assertEqual(len(special), 5)
+        self.assertTrue(
+            all(
+                item >= mixed.codec.state_vocab_size + mixed.codec.operation_vocab_size
+                for item in special
+            )
+        )
+        self.assertTrue(torch.all(tokens[:, layout.state_tokens] < mixed.codec.state_vocab_size))
+        valid_operations = tokens[1, layout.operation_tokens]
+        self.assertTrue(torch.all(valid_operations >= layout.operation_offset))
+        self.assertTrue(
+            torch.all(valid_operations < layout.operation_offset + mixed.codec.operation_vocab_size)
+        )
+        self.assertTrue(torch.all(tokens[0, layout.operation_tokens][2:] == layout.pad_token))
+        first_queries = tokens[0, layout.query_tokens].reshape(5, mixed.codec.state_size)
+        self.assertTrue(torch.all(first_queries[:2] == layout.mask_token))
+        self.assertTrue(torch.all(first_queries[2:] == layout.pad_token))
+
+    def test_token_transformer_uses_identical_target_free_serialization(self) -> None:
+        trm = OfficialTRMCCBAdapter(
+            self.batch.codec,
+            max_depth=5,
+            hidden_size=32,
+            num_heads=4,
+            l_layers=1,
+            h_cycles=1,
+            l_cycles=1,
+            halt_max_steps=1,
+        )
+        transformer = CCBTokenTransformer(
+            self.batch.codec, max_depth=5, width=32, heads=4, layers=1
+        )
+        altered = replace(self.batch, targets=(self.batch.targets + 1) % 9)
+        self.assertTrue(
+            torch.equal(trm.input_tokens(self.batch), transformer.input_tokens(self.batch))
+        )
+        self.assertTrue(
+            torch.equal(transformer.input_tokens(self.batch), transformer.input_tokens(altered))
+        )
+        output = transformer(self.batch)
         self.assertEqual(tuple(output.logits.shape), (2, 5, 9, 9))
 
 

@@ -18,11 +18,99 @@ from ccb.models.official_trm_core import (
 
 @dataclass(frozen=True)
 class CCBTRMLayout:
+    bos_position: int
     state_tokens: slice
+    ops_delimiter_position: int
     operation_tokens: slice
+    output_delimiter_position: int
     query_tokens: slice
     sequence_length: int
     vocabulary_size: int
+    operation_offset: int
+    bos_token: int
+    ops_token: int
+    output_token: int
+    mask_token: int
+    pad_token: int
+
+
+def build_ccb_trm_layout(codec: DomainCodec, max_depth: int) -> CCBTRMLayout:
+    """Create the shared, collision-free CCB token layout."""
+
+    if max_depth < 1:
+        raise ValueError("max_depth must be positive")
+    operation_offset = codec.state_vocab_size
+    special_offset = operation_offset + codec.operation_vocab_size
+    state_tokens = slice(1, 1 + codec.state_size)
+    ops_delimiter_position = state_tokens.stop
+    operation_tokens = slice(ops_delimiter_position + 1, ops_delimiter_position + 1 + max_depth)
+    output_delimiter_position = operation_tokens.stop
+    query_tokens = slice(
+        output_delimiter_position + 1,
+        output_delimiter_position + 1 + max_depth * codec.state_size,
+    )
+    return CCBTRMLayout(
+        bos_position=0,
+        state_tokens=state_tokens,
+        ops_delimiter_position=ops_delimiter_position,
+        operation_tokens=operation_tokens,
+        output_delimiter_position=output_delimiter_position,
+        query_tokens=query_tokens,
+        sequence_length=query_tokens.stop,
+        vocabulary_size=special_offset + 5,
+        operation_offset=operation_offset,
+        bos_token=special_offset,
+        ops_token=special_offset + 1,
+        output_token=special_offset + 2,
+        mask_token=special_offset + 3,
+        pad_token=special_offset + 4,
+    )
+
+
+def encode_ccb_trm_tokens(
+    batch: TransitionBatch, codec: DomainCodec, max_depth: int, layout: CCBTRMLayout
+) -> Tensor:
+    """Serialize CCB inputs without reading labels or target states."""
+
+    if batch.codec != codec:
+        raise ValueError("batch codec does not match adapter codec")
+    if batch.operations.shape[1] > max_depth:
+        raise ValueError("batch depth exceeds adapter max_depth")
+    tokens = torch.full(
+        (batch.initial_state.shape[0], layout.sequence_length),
+        layout.pad_token,
+        dtype=torch.long,
+        device=batch.initial_state.device,
+    )
+    tokens[:, layout.bos_position] = layout.bos_token
+    tokens[:, layout.state_tokens] = batch.initial_state
+    tokens[:, layout.ops_delimiter_position] = layout.ops_token
+    operation_slots = tokens[:, layout.operation_tokens]
+    observed_depth = batch.operations.shape[1]
+    encoded_operations = batch.operations + layout.operation_offset
+    operation_slots[:, :observed_depth] = torch.where(
+        batch.step_mask,
+        encoded_operations,
+        torch.full_like(encoded_operations, layout.pad_token),
+    )
+    tokens[:, layout.output_delimiter_position] = layout.output_token
+    query_slots = tokens[:, layout.query_tokens].reshape(
+        batch.initial_state.shape[0], max_depth, codec.state_size
+    )
+    valid_queries = torch.zeros(
+        (batch.initial_state.shape[0], max_depth),
+        dtype=torch.bool,
+        device=batch.initial_state.device,
+    )
+    valid_queries[:, :observed_depth] = batch.step_mask
+    query_slots.copy_(
+        torch.where(
+            valid_queries[:, :, None],
+            torch.full_like(query_slots, layout.mask_token),
+            torch.full_like(query_slots, layout.pad_token),
+        )
+    )
+    return tokens
 
 
 @dataclass(frozen=True)
@@ -50,11 +138,11 @@ class CCBOfficialACTCarry:
 class OfficialTRMCCBAdapter(nn.Module):
     """Use the official TRM core with a narrow, target-free CCB token adapter.
 
-    Input sequence layout is ``initial-state | operations | query-slots``.
-    Query slots contain a constant token and are selected only by position; no
-    label or intermediate target enters the input. The official vocabulary is
-    widened only enough to represent both state values and operation IDs. CCB
-    output uses the first ``state_vocab_size`` logits at the query positions.
+    Input sequence layout is
+    ``BOS | initial-state | OPS | operations | OUTPUT | masked-output``.
+    State values, operations, delimiters, MASK, and PAD occupy disjoint token
+    namespaces. No label or intermediate target enters the input. CCB output
+    uses state-value logits at the masked-output positions.
     """
 
     def __init__(
@@ -79,13 +167,7 @@ class OfficialTRMCCBAdapter(nn.Module):
             raise ValueError("hidden_size must be divisible by num_heads")
         self.codec = codec
         self.max_depth = max_depth
-        self.layout = CCBTRMLayout(
-            state_tokens=slice(0, codec.state_size),
-            operation_tokens=slice(codec.state_size, codec.state_size + max_depth),
-            query_tokens=slice(codec.state_size + max_depth, codec.state_size + max_depth + max_depth * codec.state_size),
-            sequence_length=codec.state_size + max_depth + max_depth * codec.state_size,
-            vocabulary_size=max(codec.state_vocab_size, codec.operation_vocab_size),
-        )
+        self.layout = build_ccb_trm_layout(codec, max_depth)
         self.core = OfficialTRMACTWrapper(
             OfficialTRMConfig(
                 batch_size=1,
@@ -108,18 +190,7 @@ class OfficialTRMCCBAdapter(nn.Module):
     def input_tokens(self, batch: TransitionBatch) -> Tensor:
         """Serialize CCB inputs without reading `targets`."""
 
-        if batch.codec != self.codec:
-            raise ValueError("batch codec does not match adapter codec")
-        if batch.operations.shape[1] > self.max_depth:
-            raise ValueError("batch depth exceeds adapter max_depth")
-        tokens = torch.zeros(
-            (batch.initial_state.shape[0], self.layout.sequence_length),
-            dtype=torch.long,
-            device=batch.initial_state.device,
-        )
-        tokens[:, self.layout.state_tokens] = batch.initial_state
-        tokens[:, self.layout.operation_tokens.start : self.layout.operation_tokens.start + batch.operations.shape[1]] = batch.operations
-        return tokens
+        return encode_ccb_trm_tokens(batch, self.codec, self.max_depth, self.layout)
 
     def _output(self, logits: Tensor, depth: int) -> ModelOutput:
         query = logits[:, self.layout.query_tokens, : self.codec.state_vocab_size]

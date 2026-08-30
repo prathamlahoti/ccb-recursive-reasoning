@@ -106,3 +106,15 @@ The full CPU integration is now complete and tested:
 `official_trm_ccb` is therefore ready for a CPU fixed-data fit gate. It is not
 yet a benchmark result or literal reproduction: CCB serialization, vocabulary,
 and labels necessarily differ from the original puzzle dataset.
+
+### Boundary correction — 2026-08-30
+
+The first GPU fit gate revealed that the initial boundary design was not a
+valid final interface: raw state and operation IDs overlapped, and token `0`
+served simultaneously as a state value, query placeholder, and padding. The
+adapter now uses disjoint namespaces plus explicit `BOS`, `OPS`, `OUTPUT`,
+`MASK`, and `PAD` tokens. A matched non-recursive Transformer consumes exactly
+the same serialized tensor. The associated v2 configurations also restore the
+released `lr_min_ratio=1.0`, model width, layer count, recurrence schedule, and
+bfloat16 forward precision. See
+[`CORRECTED_FIT_LADDER.md`](CORRECTED_FIT_LADDER.md).

@@ -5,7 +5,9 @@ one frozen, firewall-checked set of 64 generated D1 examples at depth 5 and
 evaluates on those exact same examples. It is **not** a generalisation or CCB
 leaderboard experiment.
 
-The eligible TRM gate uses `official_trm_ccb`: a narrow CCB I/O boundary over
+The current eligible gates are the sequential v2 ladder in
+[`CORRECTED_FIT_LADDER.md`](CORRECTED_FIT_LADDER.md). They use
+`official_trm_ccb`: a narrow CCB I/O boundary over
 the verified official no-puzzle TRM core, released stablemax/ACT loss equation,
 mathematically matched unfused AdamATan2, released warmup/cosine scheduler and
 copied EMA evaluator. It saves a checkpoint every 100 updates. Passing means
@@ -15,7 +17,7 @@ not a larger benchmark.
 Run locally or on GPU with:
 
 ```text
-python -m ccb fit-gate --config configs/d1_official_trm_fit_gate_v1.json
+python -m ccb fit-gate --config configs/d1_official_trm_fit_8x1_v2.json
 ```
 
 The direct-Transformer control uses

@@ -15,6 +15,7 @@ from torch.nn import functional as F
 
 from ccb.encoding import DomainCodec, TransitionBatch
 from ccb.models import (
+    CCBTokenTransformer,
     DirectTransformer,
     OfficialTRMCCBAdapter,
     PublishedTRMCCB,
@@ -115,6 +116,22 @@ def build_model(config: TrainConfig, codec: DomainCodec) -> nn.Module:
     if config.model == "transformer":
         heads = 4 if width % 4 == 0 else 1
         return DirectTransformer(codec, width=width, heads=heads, layers=count)
+    if config.model == "ccb_token_transformer":
+        if config.official_trm_forward_dtype == "float32":
+            forward_dtype = torch.float32
+        elif config.official_trm_forward_dtype == "bfloat16":
+            forward_dtype = torch.bfloat16
+        else:
+            raise ValueError("official_trm_forward_dtype must be float32 or bfloat16")
+        heads = 8 if width % 8 == 0 else (4 if width % 4 == 0 else 1)
+        return CCBTokenTransformer(
+            codec,
+            max_depth=config.trm_max_depth,
+            width=width,
+            heads=heads,
+            layers=count,
+            forward_dtype=forward_dtype,
+        )
     if config.model == "trm_upstream_core":
         heads = 4 if width % 4 == 0 else 1
         return PublishedTRMCCB(
@@ -335,6 +352,7 @@ def train_batches(
             "step": step,
             "loss": float(loss.detach()),
             "gradient_norm": float(gradient_norm.detach()),
+            "learning_rate": float(optimizer.param_groups[0]["lr"]),
         }
         history.append(record)
         if log_callback is not None:
@@ -404,6 +422,7 @@ def train_trm_act_batches(
             "gradient_norm": float(gradient_norm.detach()),
             "act_mean_steps": float(carry.steps.float().mean()),
             "act_halted_fraction": float(carry.halted.float().mean()),
+            "learning_rate": float(optimizer.param_groups[0]["lr"]),
         }
         history.append(record)
         if log_callback is not None:

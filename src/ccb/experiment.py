@@ -140,7 +140,9 @@ def _validate_trm_evaluation_depth(
 ) -> None:
     """Reject a TRM configuration that cannot encode every requested split."""
 
-    if not {"trm_upstream_core", "official_trm_ccb"}.intersection(config.models):
+    if not {"trm_upstream_core", "official_trm_ccb", "ccb_token_transformer"}.intersection(
+        config.models
+    ):
         return
     required_depth = max(
         episode.depth

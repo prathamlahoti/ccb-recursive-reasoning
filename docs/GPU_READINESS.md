@@ -2,15 +2,19 @@
 
 Status: superseded. Do **not** launch the configurations below: they use the
 earlier experimental `trm_upstream_core` adapter, which failed the fidelity
-audit. The next eligible run is a new `official_trm_ccb` fixed-data fit gate.
+audit. The old v1 fit gate also used a colliding CCB token boundary and an
+incorrect decay-to-zero schedule. The next eligible run is Gate A of the
+[`corrected v2 fit ladder`](CORRECTED_FIT_LADDER.md), on hardware with native
+bfloat16 support.
 
 ## Preconditions verified locally
 
 - The CCB task adapters reproduce all 1,200 pinned official records exactly.
 - Generated CCB-TRM data begins at depth 5, matching CCB's published minimum.
 - ACT training uses deterministic, fixed-size batches padded to the largest
-  training depth (20 for D1); `step_mask` excludes padding from attention and
-  loss. This prevents recursive state from crossing a short batch or
+  training depth (20 for D1); `step_mask` excludes padded targets from loss,
+  while a dedicated `PAD` token prevents padding from aliasing a real
+  operation. This prevents recursive state from crossing a short batch or
   depth-dependent tensor boundary. Evaluation is independently checked to fit
   every requested held-out depth.
 - The historical adapter broadly approximates recurrence only; it did not use

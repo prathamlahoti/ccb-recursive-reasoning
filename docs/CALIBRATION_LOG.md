@@ -154,3 +154,10 @@ benchmark. No depth-generalization, official-record, or multi-seed run is
 authorized. The next work must be a narrow diagnosis of the CCB output/readout
 representation and training objective, with a small baseline-preserving test
 before spending more GPU time.
+
+Post-run audit: this v1 gate used overlapping state/operation token IDs, used
+valid token `0` for both query and padding roles, and set `lr_min_ratio=0.0`
+instead of the released `1.0`. It is therefore retained as a negative result
+for the v1 adapter only. It is not evidence that the corrected TRM port cannot
+fit CCB. The replacement protocol is documented in
+[`CORRECTED_FIT_LADDER.md`](CORRECTED_FIT_LADDER.md).
