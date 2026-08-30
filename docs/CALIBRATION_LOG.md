@@ -41,3 +41,24 @@ requested evaluation depths. It **does not validate learning performance**:
 zero validation final-exact accuracy means this configuration must not be used
 for a TRM-versus-baseline claim. The next work is a bounded optimisation/
 faithfulness diagnosis on tiny fixed data, before any multi-seed benchmark.
+
+## D1 upstream-derived TRM fixed-data fit gate v1
+
+- Status: completed successfully; **fit gate failed**.
+- Execution: private Kaggle Version 1 on Tesla T4 ×2.
+- Source revision: `bef670272f95b779cf8e79ce29e6c6f1d0eaa7fb`.
+- Result artifact SHA-256:
+  `e564b41ed39c502aeb78c80d548b25865c4524507754745efd7e1a6a37850845`.
+- Config: [`configs/d1_trm_fit_gate_v1.json`](../configs/d1_trm_fit_gate_v1.json).
+
+This trained on exactly 64 firewall-checked generated D1 examples at depth 5,
+then evaluated those same examples. After 2,000 updates, live/EMA final-exact
+accuracy was 4.69%/7.81% (3/64 and 5/64); EMA element accuracy was 80.38% and
+transition-exact accuracy was 28.44%. The final ACT training record retained
+zero halted rows.
+
+This is not a generalisation result. It is a negative training-path diagnostic:
+the present upstream-derived TRM/ACT configuration cannot memorise the frozen
+set, so it must not be scaled or compared as a candidate method. The immediate
+control is a fixed-data direct-Transformer fit gate using the same generated
+episodes, seed, update count, batch size, and optimizer settings.

@@ -17,5 +17,9 @@ Run locally or on GPU with:
 python -m ccb fit-gate --config configs/d1_trm_fit_gate_v1.json
 ```
 
-The matched Transformer gate will use an explicitly recorded companion config
-only after the TRM gate establishes that the ACT path can fit this fixed data.
+The direct-Transformer control uses
+[`configs/d1_transformer_fit_gate_v1.json`](../configs/d1_transformer_fit_gate_v1.json):
+the same fixed examples, seed, optimizer settings, batch size, and update
+budget. It uses four unshared encoder blocks so that it is a sufficiently
+capable pipeline control; it is not presented as a parameter- or
+compute-matched benchmark baseline.
