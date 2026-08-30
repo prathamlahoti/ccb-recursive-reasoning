@@ -29,3 +29,10 @@ The next diagnostic is
 It keeps the same TRM core and frozen data but forces one outer ACT step, so
 every update starts from a fresh recurrent state. It tests carry/halting
 semantics, not generalisation.
+
+The core-isolation diagnostic is
+[`configs/d1_trm_one_step_supervised_fit_gate_v1.json`](../configs/d1_trm_one_step_supervised_fit_gate_v1.json).
+It preserves the same recursive core and fixed data, but uses one fresh
+recurrence step, ordinary supervised token loss, and one-step evaluation. It
+does not claim to be the released TRM training procedure; it localizes whether
+the core/adapter can learn independently of the ACT/stablemax/halting path.

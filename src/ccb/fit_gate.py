@@ -49,6 +49,7 @@ class FitGateConfig:
     trm_max_depth: int = 5
     trm_halt_max_steps: int = 3
     trm_halt_exploration_prob: float = 0.1
+    trm_training_mode: str = "act"
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "FitGateConfig":
@@ -72,12 +73,18 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
 
     if config.model not in {"transformer", "trm_upstream_core"}:
         raise ValueError("fit gate supports transformer or trm_upstream_core")
+    if config.trm_training_mode not in {"act", "one_step_supervised"}:
+        raise ValueError("trm_training_mode must be act or one_step_supervised")
+    if config.model == "transformer" and config.trm_training_mode != "act":
+        raise ValueError("one_step_supervised is only valid for trm_upstream_core")
     if min(config.examples, config.depth, config.steps, config.width) < 1:
         raise ValueError("examples, depth, steps, and width must be positive")
     if config.learning_rate <= 0:
         raise ValueError("learning_rate must be positive")
     if config.model == "trm_upstream_core" and config.trm_max_depth < config.depth:
         raise ValueError("trm_max_depth must be at least the fit-gate depth")
+    if config.trm_training_mode == "one_step_supervised" and config.trm_halt_max_steps != 1:
+        raise ValueError("one_step_supervised requires trm_halt_max_steps=1")
 
     output = Path(config.output_directory).resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -113,7 +120,7 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
     initial_live = evaluate_batch(model, batch)
     checkpoint = output / "checkpoint.pt"
 
-    if config.model == "trm_upstream_core":
+    if config.model == "trm_upstream_core" and config.trm_training_mode == "act":
         ema = ExponentialMovingAverage(model, config.ema_decay)
 
         def checkpoint_if_due(step, current_model, optimizer, current_ema, carry, pending) -> None:
