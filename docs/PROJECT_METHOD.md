@@ -35,7 +35,7 @@ not an original CCB leaderboard result. The project must say this plainly.
 ## Correct technical question
 
 > Given the complete initial state and full ordered operation/event sequence,
-> can an upstream-faithful TRM learn to emit the complete sequence of CCB
+> can a faithfully ported TRM learn to emit the complete sequence of CCB
 > states and retain transition accuracy at unseen greater depths better than a
 > compute-matched nonrecursive Transformer?
 
@@ -55,10 +55,13 @@ with the frontier LLMs in the CCB paper.
    held-out depths from the official range before any >50 stress test. Record
    generator commit, seed lists, split hashes, and duplicate/semantic-overlap
    audits.
-3. **Port the actual TRM algorithm.** Preserve fixed H/L buffers, a shared
+3. **Port the actual TRM algorithm.** Mechanically preserve the released
+   primitive layers, initialization, RoPE, fixed H/L buffers, shared
    `L_level`, no-gradient H cycles, detached carries, ACT state/reset/halting,
-   stablemax per-example loss, and copied EMA evaluation. CCB-specific token
-   layout and absence of puzzle IDs are declared adaptations.
+   stablemax loss, optimizer schedule, and EMA behavior. The CCB I/O adapter
+   is the only permitted adaptation. See
+   [the fidelity audit](TRM_FIDELITY_AUDIT.md): the current experimental
+   adapter does not meet this gate.
 4. **Pass deterministic gates.** Unit tests for no target leakage, exact
    upstream recurrence semantics, loss masking/normalization, ACT reset,
    copied EMA, and checkpoint-resume; then an ACT-enabled fixed-batch fit
@@ -73,8 +76,8 @@ with the frontier LLMs in the CCB paper.
 
 - Do not call generated-data results “CCB benchmark results”; call them
   **CCB-TRM extension results**.
-- Do not call the previous `trm_faithful`, VanillaTRM, DIS-TRM, STRM, or
-  fast-slow implementations TRM reproductions.
+- Do not call any previous adapter, including `PublishedTRMCCB`, a TRM
+  reproduction or upstream-faithful model.
 - Do not report any prior D1 pilot as a result. It used an invalid structural
   premise and a non-upstream model.
 - Do not train on or tune against the fixed official CCB records.

@@ -2,7 +2,7 @@
 
 This repository implements a **supervised CCB-TRM extension**, not an
 official CCB LLM leaderboard submission. Its objective is to test whether an
-upstream-faithful Tiny Recursive Model retains sequential state accuracy under
+faithfully ported Tiny Recursive Model retains sequential state accuracy under
 CCB-style depth scaling better than a compute-matched Transformer.
 
 The full scope, non-claims, and required implementation gates are in
@@ -34,6 +34,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 ## Source-of-truth documents
 
 - [Project method](docs/PROJECT_METHOD.md)
+- [TRM fidelity audit](docs/TRM_FIDELITY_AUDIT.md)
 - [Official data provenance](data/ccb_official/SOURCE.md)
 
 ## Repository layout
