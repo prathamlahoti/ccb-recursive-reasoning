@@ -103,3 +103,25 @@ single-step, non-ACT supervised loss and matching one-step evaluation. If that
 fits, the defect is in the ACT/stablemax/halting adaptation; if not, it is in
 the current core/representation adaptation. No benchmark-scale run is justified
 until this boundary is resolved.
+
+## D1 upstream-derived TRM one-step supervised fit gate v1
+
+- Status: completed successfully; **fit gate failed**.
+- Execution: private Kaggle Version 1 on Tesla T4.
+- Source revision: `33fa60f8abb0f4f3ceafef70e5373d175b506b46`.
+- Result artifact SHA-256:
+  `63b3f3f87441fadc537ba2ef2bca4b181354aa703d2547e7fcd3976dab341ee3`.
+- Config: [`configs/d1_trm_one_step_supervised_fit_gate_v1.json`](../configs/d1_trm_one_step_supervised_fit_gate_v1.json).
+
+This used the same core and frozen 64 depth-5 examples, but removed ACT carry,
+halt BCE, and stablemax from training: each update used one fresh recursive
+step with ordinary supervised token loss, and evaluation also used one step.
+It reached only 3.13% final-exact fit (2/64), 20.63% transition-exact fit, and
+75.38% element accuracy after 2,000 updates.
+
+Together with the passed direct-Transformer control, this localizes failure to
+the present CCB adaptation of the TRM core or its basic optimization setup—not
+to CCB data, target serialization, ordinary supervised training, ACT carry,
+halting, or stablemax. GPU experiments stop here. The required next step is a
+line-by-line fidelity audit against the pinned official TRM implementation
+before any new tuning or benchmark run.
