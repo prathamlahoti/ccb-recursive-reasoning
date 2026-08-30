@@ -125,3 +125,32 @@ to CCB data, target serialization, ordinary supervised training, ACT carry,
 halting, or stablemax. GPU experiments stop here. The required next step is a
 line-by-line fidelity audit against the pinned official TRM implementation
 before any new tuning or benchmark run.
+
+## D1 official-primitive TRM fixed-data fit gate v1
+
+- Status: completed successfully; **fit gate failed**.
+- Execution: private Kaggle Version 2 on two Tesla T4 GPUs; 134.4 seconds to
+  durable result save.
+- Source revision: `f64fce4b` (the verified official-core integration).
+- Result artifact SHA-256:
+  `54583884851bf11f03306308d6db072b2c952b76a025016b7e1f652e3317295e`.
+- Config: [`configs/d1_official_trm_fit_gate_v1.json`](../configs/d1_official_trm_fit_gate_v1.json).
+
+This is the first gate using `official_trm_ccb`, not the rejected
+`trm_upstream_core` adapter. It used the verified no-puzzle official primitive
+layers and ACT wrapper, target-free CCB token boundary, released stablemax
+loss equation, mathematically matched unfused AdamATan2 with `(0.9, 0.95)`,
+weight decay `0.1`, a 200-step warm-up/cosine schedule, and copied EMA.
+
+After 2,000 updates on the same frozen 64 firewalled depth-5 D1 examples, the
+live model achieved 29.93% element accuracy but 0% transition, final-exact,
+and trace-exact accuracy. EMA reached 22.81% element accuracy and likewise 0%
+on all exact metrics. Loss decreased from 2.369 to 1.826, while the ACT state
+reached the configured 16-step horizon.
+
+This is a valid negative result for this **CCB adaptation and configuration**.
+It does not refute released TRM on its native puzzle data, nor establish a CCB
+benchmark. No depth-generalization, official-record, or multi-seed run is
+authorized. The next work must be a narrow diagnosis of the CCB output/readout
+representation and training objective, with a small baseline-preserving test
+before spending more GPU time.
