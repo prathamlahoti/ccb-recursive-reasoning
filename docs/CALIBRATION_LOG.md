@@ -81,3 +81,25 @@ This is a pipeline control, not a benchmark comparison. It localizes the
 failed TRM fit gate to the current TRM/ACT adaptation rather than generated
 D1 data, CCB serialization, target construction, or the general fit-gate
 trainer. The next isolated test forces ACT to halt after one outer step.
+
+## D1 upstream-derived TRM forced-halt fit gate v1
+
+- Status: completed successfully; **fit gate failed**.
+- Execution: private Kaggle Version 1 on Tesla T4.
+- Source revision: `dfebe7e4c35672ee1eca3c057aa4b2ed651f3bac`.
+- Result artifact SHA-256:
+  `b47b9e4fd9c5064bf1acc7f3068599593f9a9cc59ead00b684fb64b3018922bb`.
+- Config: [`configs/d1_trm_forced_halt_fit_gate_v1.json`](../configs/d1_trm_forced_halt_fit_gate_v1.json).
+
+This held the same frozen 64 depth-5 examples, seed, core, and training budget
+constant but forced every ACT row to halt after one outer step. It did halt all
+rows (`act_halted_fraction = 1.0`), yet final-exact fit was only 6.25% live and
+3.13% EMA (4/64 and 2/64); EMA transition-exact fit was 26.56% and element
+accuracy 76.28%.
+
+Therefore persistent ACT carry is not the explanation for the failed original
+fit gate. The next bounded diagnostic should test the core recurrence with a
+single-step, non-ACT supervised loss and matching one-step evaluation. If that
+fits, the defect is in the ACT/stablemax/halting adaptation; if not, it is in
+the current core/representation adaptation. No benchmark-scale run is justified
+until this boundary is resolved.
