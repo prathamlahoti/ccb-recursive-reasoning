@@ -14,6 +14,7 @@ from ccb.dataset import (
     write_manifest,
 )
 from ccb.experiment import load_experiment_config, run_experiment_matrix
+from ccb.fit_gate import load_fit_gate_config, run_fit_gate
 from ccb.presets import PRIMARY_SPLITS, domain_generator, primary_config
 from ccb.encoding import collate_episodes
 from ccb.results import write_result
@@ -181,6 +182,12 @@ def _launch(args: argparse.Namespace) -> int:
     return 0
 
 
+def _fit_gate(args: argparse.Namespace) -> int:
+    result = run_fit_gate(load_fit_gate_config(Path(args.config)))
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ccb", description="CCB-Learn utilities")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -229,6 +236,11 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("--config", required=True, help="path to a JSON experiment config")
     launch.add_argument("--dry-run", action="store_true")
     launch.set_defaults(handler=_launch)
+    fit_gate = subparsers.add_parser(
+        "fit-gate", help="run a fixed-data TRM or Transformer training-path diagnostic"
+    )
+    fit_gate.add_argument("--config", required=True, help="path to a fit-gate JSON config")
+    fit_gate.set_defaults(handler=_fit_gate)
     return parser
 
 
