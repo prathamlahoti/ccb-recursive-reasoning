@@ -62,3 +62,22 @@ the present upstream-derived TRM/ACT configuration cannot memorise the frozen
 set, so it must not be scaled or compared as a candidate method. The immediate
 control is a fixed-data direct-Transformer fit gate using the same generated
 episodes, seed, update count, batch size, and optimizer settings.
+
+## D1 direct-Transformer fixed-data fit gate v1
+
+- Status: completed successfully; **control passed**.
+- Execution: private Kaggle Version 1 on Tesla T4.
+- Source revision: `6a3cfea37bff17209126528d5bd212e8e812805e`.
+- Result artifact SHA-256:
+  `8001c585b7033d9aa36def85d4ef09641b5a8418e07649e6b630944e8148300d`.
+- Config: [`configs/d1_transformer_fit_gate_v1.json`](../configs/d1_transformer_fit_gate_v1.json).
+
+On the exact same 64 firewall-checked D1 depth-5 examples, with the same data
+seed, training seed, batch size, 2,000-update budget, and AdamW settings, the
+four-block direct Transformer reached 100% element, transition-exact,
+final-exact, and trace-exact training-set accuracy. Its final loss was 0.00858.
+
+This is a pipeline control, not a benchmark comparison. It localizes the
+failed TRM fit gate to the current TRM/ACT adaptation rather than generated
+D1 data, CCB serialization, target construction, or the general fit-gate
+trainer. The next isolated test forces ACT to halt after one outer step.

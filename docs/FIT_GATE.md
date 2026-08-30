@@ -23,3 +23,9 @@ the same fixed examples, seed, optimizer settings, batch size, and update
 budget. It uses four unshared encoder blocks so that it is a sufficiently
 capable pipeline control; it is not presented as a parameter- or
 compute-matched benchmark baseline.
+
+The next diagnostic is
+[`configs/d1_trm_forced_halt_fit_gate_v1.json`](../configs/d1_trm_forced_halt_fit_gate_v1.json).
+It keeps the same TRM core and frozen data but forces one outer ACT step, so
+every update starts from a fresh recurrent state. It tests carry/halting
+semantics, not generalisation.

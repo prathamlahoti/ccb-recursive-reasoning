@@ -1,0 +1,22 @@
+{
+  "domain": "d1",
+  "model": "trm_upstream_core",
+  "output_directory": "runs/d1_trm_forced_halt_fit_gate_v1",
+  "examples": 64,
+  "depth": 5,
+  "seed": 17,
+  "data_seed": 90000000,
+  "width": 32,
+  "layers_or_loops": 1,
+  "steps": 2000,
+  "learning_rate": 0.003,
+  "weight_decay": 0.0,
+  "checkpoint_interval_steps": 100,
+  "device": "cuda",
+  "ema_decay": 0.999,
+  "trm_h_cycles": 3,
+  "trm_l_cycles": 6,
+  "trm_max_depth": 5,
+  "trm_halt_max_steps": 1,
+  "trm_halt_exploration_prob": 0.0
+}
