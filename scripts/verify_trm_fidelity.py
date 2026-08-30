@@ -18,9 +18,14 @@ def main() -> int:
     sys.path.insert(0, str(args.upstream))
     from models.recursive_reasoning.trm import (  # type: ignore[import-not-found]
         TinyRecursiveReasoningModel_ACTV1Config,
+        TinyRecursiveReasoningModel_ACTV1,
         TinyRecursiveReasoningModel_ACTV1_Inner,
     )
-    from ccb.models.official_trm_core import OfficialTRMConfig, OfficialTRMInner
+    from ccb.models.official_trm_core import (
+        OfficialTRMConfig,
+        OfficialTRMInner,
+        OfficialTRMACTWrapper,
+    )
 
     torch.manual_seed(20260830)
     shared = {
@@ -87,7 +92,32 @@ def main() -> int:
     reference_loss.backward()
     for name, parameter in local.named_parameters():
         torch.testing.assert_close(parameter.grad, dict(reference.named_parameters())[name].grad, rtol=0, atol=0)
-    print("OFFICIAL_TRM_FORWARD_AND_GRADIENT_EQUIVALENCE_OK")
+
+    # The separate wrapper comparison protects ACT reset/current-input handling,
+    # which does not participate in an inner-core-only trace.
+    reference_outer = TinyRecursiveReasoningModel_ACTV1(shared)
+    local_outer = OfficialTRMACTWrapper(local.config)
+    local_outer.load_state_dict(reference_outer.state_dict(), strict=True)
+    reference_outer.eval()
+    local_outer.eval()
+    reference_outer_carry = reference_outer.initial_carry(
+        {"inputs": inputs, "puzzle_identifiers": torch.zeros(2, dtype=torch.long)}
+    )
+    local_outer_carry = local_outer.initial_carry(inputs)
+    for _ in range(3):
+        reference_outer_carry, reference_outputs = reference_outer(
+            reference_outer_carry,
+            {"inputs": inputs, "puzzle_identifiers": torch.zeros(2, dtype=torch.long)},
+        )
+        local_outer_carry, local_outputs = local_outer(local_outer_carry, inputs)
+        for name in ("logits", "q_halt_logits", "q_continue_logits"):
+            torch.testing.assert_close(local_outputs[name], reference_outputs[name], rtol=0, atol=0)
+        torch.testing.assert_close(local_outer_carry.inner_carry.z_h, reference_outer_carry.inner_carry.z_H, rtol=0, atol=0)
+        torch.testing.assert_close(local_outer_carry.inner_carry.z_l, reference_outer_carry.inner_carry.z_L, rtol=0, atol=0)
+        torch.testing.assert_close(local_outer_carry.steps, reference_outer_carry.steps, rtol=0, atol=0)
+        torch.testing.assert_close(local_outer_carry.halted, reference_outer_carry.halted, rtol=0, atol=0)
+        torch.testing.assert_close(local_outer_carry.current_inputs, reference_outer_carry.current_data["inputs"], rtol=0, atol=0)
+    print("OFFICIAL_TRM_INNER_AND_ACT_WRAPPER_EQUIVALENCE_OK")
     return 0
 
 

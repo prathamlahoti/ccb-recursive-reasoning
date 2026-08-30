@@ -79,6 +79,30 @@ The first replacement milestone is complete:
   tokens, and positioned query slots whose logits are read as CCB state cells.
 
 The core-equivalence check and the CCB target-leakage/output-shape unit test
-pass locally. The adapter has not yet been connected to a faithful CCB loss,
-ACT loss head, official optimizer schedule, or experiment launcher. Therefore
-it remains **CPU-verified integration work**, not a GPU-ready model.
+pass locally.
+
+### Integration update — 2026-08-30
+
+The full CPU integration is now complete and tested:
+
+- CCB's active `TransitionBatch` is carried alongside the official token-only
+  ACT carry. It mirrors row-level reset/replacement while keeping labels out
+  of model inputs, so loss is always applied to the labels that match the
+  active token sequence.
+- The CCB loss is released stablemax with per-example token normalization plus
+  `0.5 * BCE(q_halt, exact_sequence_correct)`. Its batch mean is algebraically
+  the released summed loss divided by global batch size. Only the released
+  `no_ACT_continue=True` route is accepted; Q-continue is refused rather than
+  approximated.
+- [`optim.py`](../src/ccb/optim.py) implements the released AdamATan2 equation
+  and warmup/cosine schedule in ordinary PyTorch. It is mathematically matched
+  but unfused; the upstream CUDA extension is not vendored.
+- `TrainConfig`, experiment and fit-gate launchers, copied EMA and ACT
+  checkpointing now support `official_trm_ccb`. A full CPU ACT smoke execution
+  and 71-test suite pass.
+- The verifier now checks both inner core and ACT wrapper state, outputs, and
+  gradients exactly against the pinned official checkout in float32.
+
+`official_trm_ccb` is therefore ready for a CPU fixed-data fit gate. It is not
+yet a benchmark result or literal reproduction: CCB serialization, vocabulary,
+and labels necessarily differ from the original puzzle dataset.

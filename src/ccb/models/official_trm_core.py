@@ -262,6 +262,10 @@ class OfficialTRMACTWrapper(nn.Module):
 
     def __init__(self, config: OfficialTRMConfig) -> None:
         super().__init__()
+        if not config.no_act_continue:
+            raise NotImplementedError(
+                "the no-puzzle CCB port currently supports the released no_ACT_continue=True path only"
+            )
         self.config = config
         self.inner = OfficialTRMInner(config)
 

@@ -25,6 +25,28 @@ class CCBTRMLayout:
     vocabulary_size: int
 
 
+@dataclass(frozen=True)
+class CCBOfficialACTCarry:
+    """CCB labels paired with the official token-only ACT carry.
+
+    The official model deliberately knows only token inputs.  CCB's supervised
+    loss additionally needs the target trace for each row currently active in
+    ACT, so this boundary object mirrors exactly the row replacement performed
+    by the official wrapper without exposing labels to the model.
+    """
+
+    core: OfficialTRMACTCarry
+    current_batch: TransitionBatch
+
+    @property
+    def steps(self) -> Tensor:
+        return self.core.steps
+
+    @property
+    def halted(self) -> Tensor:
+        return self.core.halted
+
+
 class OfficialTRMCCBAdapter(nn.Module):
     """Use the official TRM core with a narrow, target-free CCB token adapter.
 
@@ -104,15 +126,43 @@ class OfficialTRMCCBAdapter(nn.Module):
         query = query.reshape(logits.shape[0], self.max_depth, self.codec.state_size, self.codec.state_vocab_size)
         return ModelOutput(query[:, :depth])
 
-    def initial_carry(self, batch: TransitionBatch) -> OfficialTRMACTCarry:
-        return self.core.initial_carry(self.input_tokens(batch))
+    def initial_carry(self, batch: TransitionBatch) -> CCBOfficialACTCarry:
+        return CCBOfficialACTCarry(self.core.initial_carry(self.input_tokens(batch)), batch)
+
+    # Compatibility with the generic ACT launcher.  This is intentionally an
+    # alias, not a second state implementation.
+    def initial_act_carry(self, batch: TransitionBatch) -> CCBOfficialACTCarry:
+        return self.initial_carry(batch)
+
+    @staticmethod
+    def _replace_halted_rows(
+        previous: TransitionBatch, incoming: TransitionBatch, reset: Tensor
+    ) -> TransitionBatch:
+        """Mirror official ACT's row-level ``torch.where`` current-data update."""
+
+        if previous.codec != incoming.codec or previous.domain != incoming.domain:
+            raise ValueError("ACT cannot replace rows across incompatible CCB batches")
+        if previous.operations.shape != incoming.operations.shape:
+            raise ValueError("ACT requires a fixed CCB batch tensor shape")
+        row = reset[:, None]
+        row_state = reset[:, None, None]
+        return TransitionBatch(
+            previous.domain,
+            torch.where(row, incoming.initial_state, previous.initial_state),
+            torch.where(row, incoming.operations, previous.operations),
+            torch.where(row_state, incoming.targets, previous.targets),
+            previous.codec,
+            torch.where(row, incoming.step_mask, previous.step_mask),
+            torch.where(reset, incoming.depths, previous.depths),
+        )
 
     def act_step(
-        self, carry: OfficialTRMACTCarry, batch: TransitionBatch
-    ) -> tuple[OfficialTRMACTCarry, ModelOutput, tuple[Tensor, Tensor]]:
-        carry, outputs = self.core(carry, self.input_tokens(batch))
+        self, carry: CCBOfficialACTCarry, batch: TransitionBatch
+    ) -> tuple[CCBOfficialACTCarry, ModelOutput, tuple[Tensor, Tensor]]:
+        current_batch = self._replace_halted_rows(carry.current_batch, batch, carry.core.halted)
+        core_carry, outputs = self.core(carry.core, self.input_tokens(batch))
         return (
-            carry,
+            CCBOfficialACTCarry(core_carry, current_batch),
             self._output(outputs["logits"], batch.operations.shape[1]),
             (outputs["q_halt_logits"], outputs["q_continue_logits"]),
         )

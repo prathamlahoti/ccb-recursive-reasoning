@@ -1,6 +1,8 @@
 # GPU Readiness: CCB-TRM D1 Calibration v1
 
-Status: ready for one server-side Kaggle Version run per configuration.
+Status: superseded. Do **not** launch the configurations below: they use the
+earlier experimental `trm_upstream_core` adapter, which failed the fidelity
+audit. The next eligible run is a new `official_trm_ccb` fixed-data fit gate.
 
 ## Preconditions verified locally
 
@@ -11,16 +13,15 @@ Status: ready for one server-side Kaggle Version run per configuration.
   loss. This prevents recursive state from crossing a short batch or
   depth-dependent tensor boundary. Evaluation is independently checked to fit
   every requested held-out depth.
-- The TRM port uses fixed H/L buffers, shared reasoning blocks, the released
-  detached H-cycle schedule, stablemax per-example token loss, halt BCE,
-  copied EMA evaluation, and fixed-max-step evaluation.
+- The historical adapter broadly approximates recurrence only; it did not use
+  released primitive layers, initialization, optimizer, or schedule.
 - ACT checkpoint/resume restores optimizer, copied EMA, ACT carry/pending
   batch, Python/Torch/CUDA RNG state, and manifest identity. The deterministic
   interrupted/resumed CPU test matches uninterrupted parameters exactly.
 - A three-update full launcher run completed on CPU with checkpointing and
   EMA evaluation. The official-evaluation flag was false.
 
-## Frozen calibration
+## Historical, invalid calibration
 
 Run these configurations separately, with no tuning between them:
 
@@ -38,7 +39,7 @@ The TRM has one shared block executed 21 times per optimizer update
 This is compute-matched by block execution, not parameter count; that is the
 appropriate first comparison for a weight-sharing method.
 
-## What this run can establish
+## Why this document remains
 
 It is a single-seed calibration: it can establish whether the corrected TRM
 path trains, fits generated CCB semantics, and merits multi-seed work. It

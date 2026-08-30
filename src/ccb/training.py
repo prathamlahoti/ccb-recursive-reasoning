@@ -16,9 +16,11 @@ from torch.nn import functional as F
 from ccb.encoding import DomainCodec, TransitionBatch
 from ccb.models import (
     DirectTransformer,
+    OfficialTRMCCBAdapter,
     PublishedTRMCCB,
 )
 from ccb.models.common import ModelOutput
+from ccb.optim import AdamATan2, official_trm_learning_rate
 
 
 def stablemax_log_probs(logits: Tensor) -> Tensor:
@@ -63,6 +65,11 @@ class TrainConfig:
     trm_max_depth: int = 100
     trm_halt_max_steps: int = 4
     trm_halt_exploration_prob: float = 0.1
+    optimizer: str = "adamw"
+    optimizer_betas: tuple[float, float] = (0.9, 0.999)
+    lr_warmup_steps: int = 0
+    lr_min_ratio: float = 0.0
+    official_trm_forward_dtype: str = "float32"
 
 
 def seed_everything(seed: int) -> None:
@@ -73,9 +80,33 @@ def seed_everything(seed: int) -> None:
 
 
 def build_optimizer(model: nn.Module, config: TrainConfig) -> torch.optim.Optimizer:
-    return torch.optim.AdamW(
-        model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
+    if config.optimizer == "adamw":
+        return torch.optim.AdamW(
+            model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay,
+            betas=config.optimizer_betas,
+        )
+    if config.optimizer == "adam_atan2":
+        return AdamATan2(
+            model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay,
+            betas=config.optimizer_betas,
+        )
+    raise ValueError(f"unknown optimizer: {config.optimizer}")
+
+
+def apply_training_schedule(optimizer: torch.optim.Optimizer, config: TrainConfig, step: int) -> None:
+    """Apply the released TRM scheduler only when explicitly requested."""
+
+    if config.optimizer != "adam_atan2":
+        return
+    learning_rate = official_trm_learning_rate(
+        step - 1,
+        base_learning_rate=config.learning_rate,
+        warmup_steps=config.lr_warmup_steps,
+        total_steps=config.steps,
+        min_ratio=config.lr_min_ratio,
     )
+    for group in optimizer.param_groups:
+        group["lr"] = learning_rate
 
 
 def build_model(config: TrainConfig, codec: DomainCodec) -> nn.Module:
@@ -96,6 +127,26 @@ def build_model(config: TrainConfig, codec: DomainCodec) -> nn.Module:
             max_depth=config.trm_max_depth,
             halt_max_steps=config.trm_halt_max_steps,
             halt_exploration_prob=config.trm_halt_exploration_prob,
+        )
+    if config.model == "official_trm_ccb":
+        if config.official_trm_forward_dtype == "float32":
+            forward_dtype = torch.float32
+        elif config.official_trm_forward_dtype == "bfloat16":
+            forward_dtype = torch.bfloat16
+        else:
+            raise ValueError("official_trm_forward_dtype must be float32 or bfloat16")
+        heads = 8 if width % 8 == 0 else (4 if width % 4 == 0 else 1)
+        return OfficialTRMCCBAdapter(
+            codec,
+            hidden_size=width,
+            num_heads=heads,
+            l_layers=count,
+            h_cycles=config.trm_h_cycles,
+            l_cycles=config.trm_l_cycles,
+            max_depth=config.trm_max_depth,
+            halt_max_steps=config.trm_halt_max_steps,
+            halt_exploration_prob=config.trm_halt_exploration_prob,
+            forward_dtype=forward_dtype,
         )
     raise ValueError(f"unknown model: {config.model}")
 
@@ -220,6 +271,7 @@ def train_fixed_batch(
     for step in range(1, config.steps + 1):
         model.train()
         optimizer.zero_grad(set_to_none=True)
+        apply_training_schedule(optimizer, config, step)
         output: ModelOutput = model(batch)  # type: ignore[assignment]
         loss = supervised_loss(
             output,
@@ -266,6 +318,7 @@ def train_batches(
         batch = original_batch.to(device)
         model.train()
         optimizer.zero_grad(set_to_none=True)
+        apply_training_schedule(optimizer, config, step)
         output: ModelOutput = model(batch)  # type: ignore[assignment]
         loss = supervised_loss(
             output,
@@ -296,7 +349,7 @@ def train_batches(
 
 
 def train_trm_act_batches(
-    model: PublishedTRMCCB,
+    model: PublishedTRMCCB | OfficialTRMCCBAdapter,
     batches: Iterable[TransitionBatch],
     config: TrainConfig,
     *,
@@ -336,6 +389,7 @@ def train_trm_act_batches(
     for step in range(start_step + 1, config.steps + 1):
         model.train()
         optimizer.zero_grad(set_to_none=True)
+        apply_training_schedule(optimizer, config, step)
         carry, output, (q_halt, _) = model.act_step(carry, pending)
         loss, lm_loss, halt_loss = trm_sequence_loss(output, q_halt, carry.current_batch)
         loss.backward()

@@ -2,7 +2,7 @@
 
 This repository implements a **supervised CCB-TRM extension**, not an
 official CCB LLM leaderboard submission. Its objective is to test whether an
-faithfully ported Tiny Recursive Model retains sequential state accuracy under
+a faithfully ported Tiny Recursive Model retains sequential state accuracy under
 CCB-style depth scaling better than a compute-matched Transformer.
 
 The full scope, non-claims, and required implementation gates are in
@@ -16,6 +16,10 @@ results have been removed because they do not support this objective.
   exactly.
 - The fixed official records are evaluation-only. Generated data is required
   for supervised TRM training and must be labelled as an extension.
+- The no-puzzle official TRM core and ACT wrapper have exact float32
+  forward/gradient equivalence against the pinned upstream checkout. The next
+  gate is the fixed-data run in
+  [`configs/d1_official_trm_fit_gate_v1.json`](configs/d1_official_trm_fit_gate_v1.json).
 
 ## Setup
 

@@ -142,6 +142,20 @@ class TrainingTests(unittest.TestCase):
         for left, right in zip(full_ema.evaluation_model.parameters(), final_ema.evaluation_model.parameters()):
             self.assertTrue(torch.equal(left, right))
 
+    def test_official_trm_adapter_runs_through_act_and_adam_atan2(self) -> None:
+        batch = collate_episodes([AlienGridDomain().generate(depth=5, seed=seed) for seed in range(2)])
+        config = TrainConfig(
+            model="official_trm_ccb", width=32, layers_or_loops=1, steps=3,
+            learning_rate=1e-3, weight_decay=0.1, optimizer="adam_atan2",
+            optimizer_betas=(0.9, 0.95), trm_h_cycles=1, trm_l_cycles=1,
+            trm_max_depth=5, trm_halt_max_steps=1, trm_halt_exploration_prob=0.0,
+        )
+        model = build_model(config, batch.codec)
+        _, ema, carry, history = train_trm_act_batches(model, [batch] * 4, config)
+        self.assertEqual(len(history), 3)
+        self.assertTrue(torch.equal(carry[0].current_batch.targets, batch.targets))
+        self.assertFalse(any(parameter.requires_grad for parameter in ema.evaluation_model.parameters()))
+
 class ResultTests(unittest.TestCase):
     def test_result_artifacts(self) -> None:
         table = markdown_table([{"model": "oracle", "accuracy": 1.0}], ("model", "accuracy"))

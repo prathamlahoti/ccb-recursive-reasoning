@@ -5,16 +5,17 @@ one frozen, firewall-checked set of 64 generated D1 examples at depth 5 and
 evaluates on those exact same examples. It is **not** a generalisation or CCB
 leaderboard experiment.
 
-The TRM gate uses the active upstream-derived ACT/stablemax/EMA path. It saves
-a checkpoint every 100 updates and records both the live model and its copied
-EMA evaluator. Passing means near-perfect final-exact accuracy on the fixed
-set; failure means the next action is port/optimisation diagnosis, not a
-larger benchmark.
+The eligible TRM gate uses `official_trm_ccb`: a narrow CCB I/O boundary over
+the verified official no-puzzle TRM core, released stablemax/ACT loss equation,
+mathematically matched unfused AdamATan2, released warmup/cosine scheduler and
+copied EMA evaluator. It saves a checkpoint every 100 updates. Passing means
+near-perfect final-exact accuracy on the fixed set; failure means diagnosis,
+not a larger benchmark.
 
 Run locally or on GPU with:
 
 ```text
-python -m ccb fit-gate --config configs/d1_trm_fit_gate_v1.json
+python -m ccb fit-gate --config configs/d1_official_trm_fit_gate_v1.json
 ```
 
 The direct-Transformer control uses
@@ -24,7 +25,9 @@ budget. It uses four unshared encoder blocks so that it is a sufficiently
 capable pipeline control; it is not presented as a parameter- or
 compute-matched benchmark baseline.
 
-The next diagnostic is
+The following are completed historical diagnostics of the rejected
+`trm_upstream_core` adapter, retained only to explain the fidelity audit. The
+next diagnostic was
 [`configs/d1_trm_forced_halt_fit_gate_v1.json`](../configs/d1_trm_forced_halt_fit_gate_v1.json).
 It keeps the same TRM core and frozen data but forces one outer ACT step, so
 every update starts from a fresh recurrent state. It tests carry/halting

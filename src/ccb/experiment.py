@@ -58,12 +58,19 @@ class ExperimentConfig:
     trm_max_depth: int = 100
     trm_halt_max_steps: int = 4
     trm_halt_exploration_prob: float = 0.1
+    optimizer: str = "adamw"
+    optimizer_betas: tuple[float, float] = (0.9, 0.999)
+    lr_warmup_steps: int = 0
+    lr_min_ratio: float = 0.0
+    official_trm_forward_dtype: str = "float32"
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "ExperimentConfig":
         normalized = dict(payload)
         normalized["models"] = tuple(normalized["models"])
         normalized["seeds"] = tuple(normalized.get("seeds", (0, 1, 2)))
+        if "optimizer_betas" in normalized:
+            normalized["optimizer_betas"] = tuple(normalized["optimizer_betas"])
         return cls(**normalized)
 
 
@@ -133,7 +140,7 @@ def _validate_trm_evaluation_depth(
 ) -> None:
     """Reject a TRM configuration that cannot encode every requested split."""
 
-    if "trm_upstream_core" not in config.models:
+    if not {"trm_upstream_core", "official_trm_ccb"}.intersection(config.models):
         return
     required_depth = max(
         episode.depth
@@ -276,6 +283,11 @@ def run_experiment_matrix(
             trm_max_depth=config.trm_max_depth,
             trm_halt_max_steps=config.trm_halt_max_steps,
             trm_halt_exploration_prob=config.trm_halt_exploration_prob,
+            optimizer=config.optimizer,
+            optimizer_betas=config.optimizer_betas,
+            lr_warmup_steps=config.lr_warmup_steps,
+            lr_min_ratio=config.lr_min_ratio,
+            official_trm_forward_dtype=config.official_trm_forward_dtype,
         )
         run_identity = {
             "experiment": asdict(config),
@@ -301,7 +313,7 @@ def run_experiment_matrix(
         ema: ExponentialMovingAverage | None = None
         act_state = None
         if checkpoint_path.exists():
-            if model_name == "trm_upstream_core":
+            if model_name in {"trm_upstream_core", "official_trm_ccb"}:
                 ema = ExponentialMovingAverage(model, config.ema_decay)
                 start_step, checkpoint_payload = load_checkpoint(
                     checkpoint_path, model=model, optimizer=optimizer, device=config.device,
@@ -332,7 +344,7 @@ def run_experiment_matrix(
                     step=step,
                 )
 
-        if model_name == "trm_upstream_core":
+        if model_name in {"trm_upstream_core", "official_trm_ccb"}:
             def act_checkpoint_if_due(step, current_model, current_optimizer, current_ema, carry, pending):
                 if config.checkpoint_interval_steps and step % config.checkpoint_interval_steps == 0:
                     save_checkpoint(

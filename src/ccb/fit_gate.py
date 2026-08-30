@@ -50,10 +50,18 @@ class FitGateConfig:
     trm_halt_max_steps: int = 3
     trm_halt_exploration_prob: float = 0.1
     trm_training_mode: str = "act"
+    optimizer: str = "adamw"
+    optimizer_betas: tuple[float, float] = (0.9, 0.999)
+    lr_warmup_steps: int = 0
+    lr_min_ratio: float = 0.0
+    official_trm_forward_dtype: str = "float32"
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "FitGateConfig":
-        return cls(**dict(payload))
+        normalized = dict(payload)
+        if "optimizer_betas" in normalized:
+            normalized["optimizer_betas"] = tuple(normalized["optimizer_betas"])
+        return cls(**normalized)
 
 
 def load_fit_gate_config(path: Path) -> FitGateConfig:
@@ -71,17 +79,18 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
     specified training path can learn an unchanging small set.
     """
 
-    if config.model not in {"transformer", "trm_upstream_core"}:
-        raise ValueError("fit gate supports transformer or trm_upstream_core")
+    trm_models = {"trm_upstream_core", "official_trm_ccb"}
+    if config.model not in {"transformer", *trm_models}:
+        raise ValueError("fit gate supports transformer, trm_upstream_core, or official_trm_ccb")
     if config.trm_training_mode not in {"act", "one_step_supervised"}:
         raise ValueError("trm_training_mode must be act or one_step_supervised")
     if config.model == "transformer" and config.trm_training_mode != "act":
-        raise ValueError("one_step_supervised is only valid for trm_upstream_core")
+        raise ValueError("one_step_supervised is only valid for TRM models")
     if min(config.examples, config.depth, config.steps, config.width) < 1:
         raise ValueError("examples, depth, steps, and width must be positive")
     if config.learning_rate <= 0:
         raise ValueError("learning_rate must be positive")
-    if config.model == "trm_upstream_core" and config.trm_max_depth < config.depth:
+    if config.model in trm_models and config.trm_max_depth < config.depth:
         raise ValueError("trm_max_depth must be at least the fit-gate depth")
     if config.trm_training_mode == "one_step_supervised" and config.trm_halt_max_steps != 1:
         raise ValueError("one_step_supervised requires trm_halt_max_steps=1")
@@ -115,12 +124,17 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
         trm_max_depth=config.trm_max_depth,
         trm_halt_max_steps=config.trm_halt_max_steps,
         trm_halt_exploration_prob=config.trm_halt_exploration_prob,
+        optimizer=config.optimizer,
+        optimizer_betas=config.optimizer_betas,
+        lr_warmup_steps=config.lr_warmup_steps,
+        lr_min_ratio=config.lr_min_ratio,
+        official_trm_forward_dtype=config.official_trm_forward_dtype,
     )
     model = build_model(train_config, batch.codec).to(config.device)
     initial_live = evaluate_batch(model, batch)
     checkpoint = output / "checkpoint.pt"
 
-    if config.model == "trm_upstream_core" and config.trm_training_mode == "act":
+    if config.model in trm_models and config.trm_training_mode == "act":
         ema = ExponentialMovingAverage(model, config.ema_decay)
 
         def checkpoint_if_due(step, current_model, optimizer, current_ema, carry, pending) -> None:
