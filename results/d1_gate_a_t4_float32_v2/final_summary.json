@@ -1,0 +1,57 @@
+{
+  "schema": "ccb_gate_a_t4_float32_v2",
+  "source_commit": "6fbcf8453940e9d5b27833a00f5c4f8503ef468d",
+  "purpose": "T4 float32 implementation diagnostic; not released-precision evidence",
+  "wall_seconds": 151.80050039291382,
+  "gate_passed": true,
+  "results": {
+    "trm": {
+      "model": "official_trm_ccb",
+      "examples": 8,
+      "depth": 1,
+      "steps": 2000,
+      "initial_live": {
+        "element_accuracy": 0.0972222238779068,
+        "transition_exact_accuracy": 0.0,
+        "final_exact_accuracy": 0.0,
+        "trace_exact_accuracy": 0.0
+      },
+      "final_live": {
+        "element_accuracy": 1.0,
+        "transition_exact_accuracy": 1.0,
+        "final_exact_accuracy": 1.0,
+        "trace_exact_accuracy": 1.0
+      },
+      "first_loss": 2.417806101220844,
+      "last_loss": 0.01685410764713246,
+      "last_lm_loss": 0.0168532777486785,
+      "last_halt_loss": 1.6597969079157338e-06,
+      "last_act_mean_steps": 1.125,
+      "last_act_halted_fraction": 1.0,
+      "firewall_safe": true,
+      "passed": true
+    },
+    "transformer": {
+      "model": "ccb_token_transformer",
+      "examples": 8,
+      "depth": 1,
+      "steps": 2000,
+      "initial_live": {
+        "element_accuracy": 0.1111111119389534,
+        "transition_exact_accuracy": 0.0,
+        "final_exact_accuracy": 0.0,
+        "trace_exact_accuracy": 0.0
+      },
+      "final_live": {
+        "element_accuracy": 1.0,
+        "transition_exact_accuracy": 1.0,
+        "final_exact_accuracy": 1.0,
+        "trace_exact_accuracy": 1.0
+      },
+      "first_loss": 2.5772898197174072,
+      "last_loss": 0.0001426346570951864,
+      "firewall_safe": true,
+      "passed": true
+    }
+  }
+}

@@ -58,6 +58,9 @@ precision from bfloat16 to float32, runs the two models on separate T4 GPUs,
 and persists independent checkpoints, logs, results, plus a final summary.
 Its purpose is to clear the implementation gate while native-bfloat16
 hardware is unavailable; it is not a publishable released-precision result.
+After Gate A passes, its depth-5 continuation uses the corresponding
+`d1_official_trm_fit_16x5_t4_float32_v2.json` and
+`d1_token_transformer_fit_16x5_t4_float32_v2.json` pair.
 
 ## Sequential gates
 

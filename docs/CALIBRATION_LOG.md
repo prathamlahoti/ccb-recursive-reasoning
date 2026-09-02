@@ -161,3 +161,28 @@ instead of the released `1.0`. It is therefore retained as a negative result
 for the v1 adapter only. It is not evidence that the corrected TRM port cannot
 fit CCB. The replacement protocol is documented in
 [`CORRECTED_FIT_LADDER.md`](CORRECTED_FIT_LADDER.md).
+
+## D1 corrected Gate A — paired T4 float32 diagnostic v2
+
+- Status: completed successfully; **both fit controls passed**.
+- Execution: private Kaggle Version 1, one process per Tesla T4 GPU.
+- Verified model-core commit: `6fbcf8453940e9d5b27833a00f5c4f8503ef468d`.
+- Wall time: 151.80 seconds.
+- Compact result: [`results/d1_gate_a_t4_float32_v2/final_summary.json`](../results/d1_gate_a_t4_float32_v2/final_summary.json).
+
+Both models trained on the same eight firewalled D1 examples at depth 1, with
+the collision-free token representation, seed 17, data seed 90000000, width
+512, two layers, AdamATan2, 2,000-step warm-up/update budget, and live-weight
+evaluation. Both began at 0% transition-, final-, and trace-exact accuracy and
+finished at 100% element, transition-exact, final-exact, and trace-exact
+accuracy. TRM loss fell from 2.41781 to 0.01685; matched token-Transformer loss
+fell from 2.57729 to 0.000143. The TRM finished with all rows halted and 1.125
+mean ACT steps.
+
+This clears the basic corrected I/O, optimizer, loss, and training-path gate.
+It does not measure held-out generalization or establish a TRM advantage. In
+particular, depth 1 does not substantially exercise recursive computation, and
+this run substituted float32 for the released bfloat16 precision because T4
+lacks native bfloat16. Gate B (16 fixed examples at depth 5) is now eligible as
+the next diagnostic; a released-precision result still requires suitable
+native-bfloat16 hardware.
