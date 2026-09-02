@@ -74,6 +74,14 @@ same 16 examples from the same seed, increases the budget to 10,000 updates,
 and gates explicitly on EMA/max-16 metrics. Gate C remains blocked unless this
 run reaches the original 99% final- and trace-exact thresholds.
 
+The 10,000-update Gate B diagnostic subsequently passed with 100% EMA/max-16
+trace exactness; its recurrence sweep confirmed 100% EMA accuracy at every
+step. Gate C is therefore eligible. Its paired T4 configs are
+`d1_official_trm_fit_64x5_t4_float32_v3.json` and
+`d1_token_transformer_fit_64x5_t4_float32_v3.json`. TRM gates on EMA and the
+Transformer control gates on live weights, following their respective
+training paths.
+
 ## Sequential gates
 
 | Gate | TRM config | Matched token-Transformer control | Maximum updates |
@@ -84,10 +92,11 @@ run reaches the original 99% final- and trace-exact thresholds.
 
 Each pair uses the same examples, generator seed, model width, layer count,
 optimizer, schedule, precision, and update budget. A gate passes only when
-both live final-state exact accuracy and complete-trace exact accuracy reach
-at least 99%. Gate B is not launched unless Gate A passes; Gate C is not
-launched unless Gate B passes. No held-out-depth experiment is permitted until
-Gate C passes.
+the predeclared weight source reaches at least 99% final-state and
+complete-trace exact accuracy: EMA for the upstream-style TRM result and live
+weights for the current Transformer control. Gate B is not launched unless
+Gate A passes; Gate C is not launched unless Gate B passes. No held-out-depth
+experiment is permitted until Gate C passes.
 
 These are memorization and pipeline-correctness gates, not publishable
 generalization results.

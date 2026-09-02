@@ -1,0 +1,36 @@
+{
+  "schema": "ccb_gate_b_trm_10k_t4_float32_v3_compact",
+  "source_core_commit": "6fbcf8453940e9d5b27833a00f5c4f8503ef468d",
+  "purpose": "T4 float32 extended fit diagnostic; not released-precision evidence",
+  "wall_seconds": 1934.3707180023193,
+  "gate_weights": "ema",
+  "passed": true,
+  "initial_live": {
+    "element_accuracy": 0.11666666716337204,
+    "transition_exact_accuracy": 0.0,
+    "final_exact_accuracy": 0.0,
+    "trace_exact_accuracy": 0.0
+  },
+  "final_live": {
+    "element_accuracy": 0.9694444537162781,
+    "transition_exact_accuracy": 0.862500011920929,
+    "final_exact_accuracy": 0.875,
+    "trace_exact_accuracy": 0.625
+  },
+  "final_ema": {
+    "element_accuracy": 1.0,
+    "transition_exact_accuracy": 1.0,
+    "final_exact_accuracy": 1.0,
+    "trace_exact_accuracy": 1.0
+  },
+  "last_training_record": {
+    "step": 10000,
+    "loss": 0.4609545211524651,
+    "lm_loss": 0.019455184646225056,
+    "halt_loss": 0.8829986453056335,
+    "gradient_norm": 5.955743312835693,
+    "act_mean_steps": 1.875,
+    "act_halted_fraction": 0.9375,
+    "learning_rate": 0.0001
+  }
+}

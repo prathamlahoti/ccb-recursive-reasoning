@@ -218,3 +218,25 @@ trace gate (14/16 traces). The earlier decision to make live weights the sole
 faithful gate was too strict relative to the reported upstream commands and
 must be corrected before another TRM fit run. This correction does not turn
 Gate B into a pass and does not authorize Gate C.
+
+## D1 corrected Gate B — TRM-only 10K EMA diagnostic v3
+
+- Status: completed successfully; **Gate B passed**.
+- Execution: private Kaggle Version 1 on Tesla T4.
+- Verified model-core commit: `6fbcf8453940e9d5b27833a00f5c4f8503ef468d`.
+- Wall time: 1,934.37 seconds (32.24 minutes).
+- Compact result: [`results/d1_gate_b_trm_10k_t4_float32_v3/final_summary.json`](../results/d1_gate_b_trm_10k_t4_float32_v3/final_summary.json).
+- Recurrence sweep: [`results/d1_gate_b_trm_10k_t4_float32_v3/trm_recurrence_sweep.json`](../results/d1_gate_b_trm_10k_t4_float32_v3/trm_recurrence_sweep.json).
+
+The predeclared upstream-style EMA/max-16 gate reached 100% element,
+transition-exact, final-exact, and trace-exact accuracy on all 16 fixed
+depth-5 examples. A post-run sweep confirmed that EMA retained 100% on all
+four metrics at every recurrence step from 1 through 16, so this is a stable
+fit rather than a lucky evaluation step. Live weights remained less stable
+(87.5% final and 62.5% trace exactness in the recorded gate result), confirming
+that the pass specifically relies on the EMA evaluation used by the upstream
+reported experiments.
+
+This establishes only fixed-set optimization correctness. It is neither a
+generalization result nor evidence that TRM beats the matched Transformer.
+Gate C—the paired 64-example depth-5 fit check—is now eligible.
