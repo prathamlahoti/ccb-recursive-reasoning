@@ -51,6 +51,14 @@ The bfloat16 configurations require hardware with native bfloat16 support.
 Tesla T4 is not the target for the released-precision run; a T4 float32 run
 must be labelled a precision ablation rather than silently substituted.
 
+The paired T4 diagnostic uses
+`d1_official_trm_fit_8x1_t4_float32_v2.json` and
+`d1_token_transformer_fit_8x1_t4_float32_v2.json`. It changes only forward
+precision from bfloat16 to float32, runs the two models on separate T4 GPUs,
+and persists independent checkpoints, logs, results, plus a final summary.
+Its purpose is to clear the implementation gate while native-bfloat16
+hardware is unavailable; it is not a publishable released-precision result.
+
 ## Sequential gates
 
 | Gate | TRM config | Matched token-Transformer control | Maximum updates |
