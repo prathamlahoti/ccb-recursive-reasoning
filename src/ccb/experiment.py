@@ -268,12 +268,22 @@ def run_experiment_matrix(
     if dry_run:
         return plans
 
-    splits, firewall = build_primary_splits(config.domain)
+    all_splits, firewall = build_primary_splits(config.domain)
+    selected_split_names = ("train", *config.evaluation_splits)
+    splits = {name: all_splits[name] for name in selected_split_names}
     _validate_trm_evaluation_depth(config, splits)
     output_root = Path(config.output_directory).resolve()
+    manifest_config = primary_config(config.domain)
+    manifest_config["splits"] = [
+        item for item in manifest_config["splits"]
+        if item["name"] in selected_split_names
+    ]
+    manifest_config["excluded_generated_splits"] = sorted(
+        set(all_splits) - set(selected_split_names)
+    )
     manifest = build_manifest(
         splits,
-        config=primary_config(config.domain),
+        config=manifest_config,
         official_firewall=firewall,
     )
     manifest["shortcut_audits"] = {

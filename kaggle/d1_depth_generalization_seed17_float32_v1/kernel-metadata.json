@@ -1,0 +1,18 @@
+{
+  "id": "prathamlahoti2/ccb-d1-depth-generalization-seed17-float32-v1",
+  "title": "CCB D1 Depth Generalization Seed17 Float32 v1",
+  "code_file": "ccb-d1-depth-generalization-seed17-float32-v1.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": ["gpu"],
+  "dataset_sources": ["prathamlahoti2/ccb-trm-source-851fd0f"],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": [],
+  "docker_image": "gcr.io/kaggle-gpu-images/python",
+  "machine_shape": "NvidiaTeslaT4"
+}

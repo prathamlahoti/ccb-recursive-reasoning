@@ -1,0 +1,49 @@
+{
+  "model": "ccb_token_transformer",
+  "parameters": 6326272,
+  "records": [
+    {
+      "batch_size": 1,
+      "eval_ok": true,
+      "eval_peak_gib": 0.05107831954956055,
+      "eval_seconds": 0.11749357899998358,
+      "train_ok": true,
+      "train_peak_gib": 0.08522415161132812,
+      "train_step_seconds": 0.9738004830001046
+    },
+    {
+      "batch_size": 2,
+      "eval_ok": true,
+      "eval_peak_gib": 0.06003236770629883,
+      "eval_seconds": 0.007662497999945117,
+      "train_ok": true,
+      "train_peak_gib": 0.1337752342224121,
+      "train_step_seconds": 0.025816423000037503
+    },
+    {
+      "batch_size": 4,
+      "eval_ok": true,
+      "eval_peak_gib": 0.07757425308227539,
+      "eval_seconds": 0.012760356000057982,
+      "train_ok": true,
+      "train_peak_gib": 0.22085142135620117,
+      "train_step_seconds": 0.043600518999937776
+    },
+    {
+      "batch_size": 8,
+      "eval_ok": true,
+      "eval_peak_gib": 0.11204719543457031,
+      "eval_seconds": 0.01448894999998629,
+      "train_ok": true,
+      "train_peak_gib": 0.3956594467163086,
+      "train_step_seconds": 0.0957834210000783
+    }
+  ],
+  "schema": "ccb_depth50_resource_calibration_v1",
+  "source": {
+    "kaggle_kernel": "prathamlahoti2/ccb-d1-depth-50-resource-calibration-v1",
+    "kaggle_version": 2,
+    "note": "Corrected Transformer-only retry. Accuracy smoke values were omitted here because this calibration used untrained weights and makes no accuracy claim."
+  },
+  "token_canvas_length": 512
+}

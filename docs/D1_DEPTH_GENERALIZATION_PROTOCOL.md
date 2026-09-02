@@ -91,4 +91,29 @@ because the calibration wrapper omitted the required explicit
 `loop_supervision_weight=0.0` argument to `supervised_loss`. This was a wrapper
 failure, not an out-of-memory or model failure. Version 2 is limited to the
 corrected Transformer worker; the successful Version 1 TRM data are retained.
-The held-out-depth job remains gated until that retry completes.
+Version 2 completed successfully and supplied all Transformer measurements.
+The complete batch-8 calibration is:
+
+| Model | Train step | Train peak | Evaluation batch | Evaluation time | Evaluation peak |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Official TRM CCB | 0.784 s | 2.517 GiB | 8 | 6.793 s | 0.232 GiB |
+| Token Transformer | 0.096 s | 0.396 GiB | 8 | 0.014 s | 0.112 GiB |
+
+Batch-size-1 timings are discarded for throughput estimation because they
+include CUDA warm-up. No accuracy conclusion is drawn from calibration because
+the models were untrained. The preregistered seed-17 run will use training
+batch size 8 and evaluation batch size 8 for both models. This holds batch size
+constant across models, fits conservatively on each T4, and should finish in
+roughly 2.5--3 hours when the two workers run concurrently. The resource gate
+is passed.
+
+## Execution plan
+
+The first held-out-depth run uses two isolated workers, with TRM pinned to GPU
+0 and the token Transformer pinned to GPU 1. Each worker receives its own
+output directory, atomically replaced checkpoint every 250 updates, training
+ledger, dataset manifest, final EMA checkpoint, primary EMA evaluation, and
+secondary live-weight evaluation. The controller reports progress periodically
+and writes a compact final summary. It does not create a duplicate ZIP archive,
+which avoids the earlier Kaggle disk-exhaustion failure. Official evaluation is
+disabled and `test_strong` is absent from the run manifest and evaluations.
