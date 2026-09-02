@@ -11,7 +11,7 @@ import time
 import traceback
 from pathlib import Path
 
-SOURCE_COMMIT = "__SOURCE_COMMIT__"
+SOURCE_COMMIT = "9726ab7f57883cf04570e5a50e30b10b7955c4bc"
 WORKING = Path("/kaggle/working")
 OUTPUT = WORKING / "d1-depth-generalization-v1"
 OUTPUT.mkdir(parents=True, exist_ok=True)
