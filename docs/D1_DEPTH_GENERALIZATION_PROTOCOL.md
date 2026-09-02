@@ -117,3 +117,10 @@ secondary live-weight evaluation. The controller reports progress periodically
 and writes a compact final summary. It does not create a duplicate ZIP archive,
 which avoids the earlier Kaggle disk-exhaustion failure. Official evaluation is
 disabled and `test_strong` is absent from the run manifest and evaluations.
+
+Version 1 of the private Kaggle kernel
+`prathamlahoti2/ccb-d1-depth-generalization-seed17-float32-v1` was submitted on
+2026-09-03 from pinned source commit
+`9726ab7f57883cf04570e5a50e30b10b7955c4bc`. Kaggle reported the Version run
+as running after submission. Its outputs are calibration evidence until the
+predeclared multi-seed gate is met; they are not final paper numbers.
