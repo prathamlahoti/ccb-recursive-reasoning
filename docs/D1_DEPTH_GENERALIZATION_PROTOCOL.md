@@ -132,3 +132,9 @@ update. This is an execution-order bug, not an experimental outcome. The fix
 moves each live model to its configured device before optimizer and EMA
 construction and adds an explicit cross-device EMA invariant plus regression
 test. Version 1 contributes no accuracy or runtime result.
+
+Version 2 was submitted on 2026-09-03 from corrected source commit
+`25f2c3579d726d912e787242ec01997f65d94f81`. Before submission, all 78 local
+tests passed, including both training paths and a regression check that rejects
+cross-device EMA updates before tensor arithmetic. Kaggle reported Version 2
+as running after submission.
