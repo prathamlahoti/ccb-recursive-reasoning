@@ -99,6 +99,18 @@ class VariableDepthAndEvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "configured 3, required 4"):
             _validate_trm_evaluation_depth(config, splits)
 
+    def test_trm_depth_validation_uses_only_requested_splits(self) -> None:
+        config = ExperimentConfig(
+            domain="d1", models=("official_trm_ccb",), trm_max_depth=4,
+            evaluation_splits=("validation",),
+        )
+        splits = {
+            "validation": self.episodes,
+            "test_depth": (AlienGridDomain().generate(depth=5, seed=13),),
+            "test_strong": (AlienGridDomain().generate(depth=6, seed=14),),
+        }
+        _validate_trm_evaluation_depth(config, splits)
+
 
 class DeepImprovementTests(unittest.TestCase):
     def test_targets_start_at_input_and_end_at_oracle(self) -> None:
@@ -131,6 +143,16 @@ class ExperimentLauncherTests(unittest.TestCase):
             )
             plans = run_experiment_matrix(config, dry_run=True)
             self.assertEqual(len(plans), 4)
+            self.assertFalse(any(Path(directory).iterdir()))
+
+    def test_invalid_evaluation_controls_are_rejected_before_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            config = ExperimentConfig(
+                domain="d1", models=("transformer",), output_directory=directory,
+                evaluation_batch_size=0, evaluation_splits=("validation",),
+            )
+            with self.assertRaisesRegex(ValueError, "evaluation_batch_size"):
+                run_experiment_matrix(config, dry_run=True)
             self.assertFalse(any(Path(directory).iterdir()))
 
     def test_seed_aggregation_preserves_per_depth_results(self) -> None:

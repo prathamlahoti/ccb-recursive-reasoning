@@ -103,6 +103,23 @@ class TrainingTests(unittest.TestCase):
         self.assertTrue(all(torch.equal(old, now) for old, now in zip(original[1:], list(model.parameters())[1:])))
         self.assertFalse(any(parameter.requires_grad for parameter in ema.evaluation_model.parameters()))
 
+    def test_generic_training_updates_supplied_ema(self) -> None:
+        batch = collate_episodes([AlienGridDomain().generate(depth=2, seed=0)])
+        config = TrainConfig(
+            model="transformer", width=16, layers_or_loops=1,
+            learning_rate=0.01, steps=2,
+        )
+        model = build_model(config, batch.codec)
+        ema = ExponentialMovingAverage(model, 0.9)
+        before = [value.detach().clone() for value in ema.evaluation_model.parameters()]
+        train_batches(model, [batch] * 2, config, ema=ema)
+        self.assertTrue(
+            any(
+                not torch.equal(left, right)
+                for left, right in zip(before, ema.evaluation_model.parameters())
+            )
+        )
+
     def test_act_resume_matches_uninterrupted_training(self) -> None:
         batch = collate_episodes([AlienGridDomain().generate(depth=5, seed=seed) for seed in range(2)])
         full = TrainConfig(

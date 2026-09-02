@@ -4,6 +4,7 @@ import json
 import platform
 import statistics
 import sys
+import time
 from dataclasses import asdict, dataclass
 from itertools import chain
 from pathlib import Path
@@ -45,6 +46,7 @@ class ExperimentConfig:
     layers_or_loops: int = 4
     steps: int = 1_000
     batch_size: int = 32
+    evaluation_batch_size: int | None = None
     learning_rate: float = 1e-3
     weight_decay: float = 0.0
     loop_supervision_weight: float = 0.0
@@ -63,12 +65,18 @@ class ExperimentConfig:
     lr_warmup_steps: int = 0
     lr_min_ratio: float = 0.0
     official_trm_forward_dtype: str = "float32"
+    evaluation_splits: tuple[str, ...] = ("validation", "test_depth", "test_strong")
+    evaluation_weights: str = "model_default"
+    record_live_evaluation: bool = False
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "ExperimentConfig":
         normalized = dict(payload)
         normalized["models"] = tuple(normalized["models"])
         normalized["seeds"] = tuple(normalized.get("seeds", (0, 1, 2)))
+        normalized["evaluation_splits"] = tuple(
+            normalized.get("evaluation_splits", ("validation", "test_depth", "test_strong"))
+        )
         if "optimizer_betas" in normalized:
             normalized["optimizer_betas"] = tuple(normalized["optimizer_betas"])
         return cls(**normalized)
@@ -146,7 +154,7 @@ def _validate_trm_evaluation_depth(
         return
     required_depth = max(
         episode.depth
-        for split_name in ("validation", "test_depth", "test_strong")
+        for split_name in config.evaluation_splits
         for episode in splits[split_name]
     )
     if config.trm_max_depth < required_depth:
@@ -243,6 +251,15 @@ def run_experiment_matrix(
         raise ValueError("domain must be d1, d2, or d3")
     if not config.models or not config.seeds:
         raise ValueError("models and seeds cannot be empty")
+    if config.batch_size < 1:
+        raise ValueError("batch_size must be positive")
+    if config.evaluation_batch_size is not None and config.evaluation_batch_size < 1:
+        raise ValueError("evaluation_batch_size must be positive")
+    allowed_splits = {"validation", "test_depth", "test_strong"}
+    if not config.evaluation_splits or not set(config.evaluation_splits) <= allowed_splits:
+        raise ValueError("evaluation_splits must be a nonempty subset of generated evaluation splits")
+    if config.evaluation_weights not in {"model_default", "live", "ema"}:
+        raise ValueError("evaluation_weights must be model_default, live, or ema")
     plans = [
         {"domain": config.domain, "model": model, "seed": seed}
         for model in config.models
@@ -309,14 +326,19 @@ def run_experiment_matrix(
         )
         seed_everything(seed)
         model = build_model(train_config, codec)
+        run_started = time.perf_counter()
+        if str(config.device).startswith("cuda"):
+            torch.cuda.reset_peak_memory_stats(torch.device(config.device))
         checkpoint_path = run_directory / "checkpoint.pt"
         optimizer = build_optimizer(model, train_config)
         start_step = 0
-        ema: ExponentialMovingAverage | None = None
+        needs_ema = model_name in {"trm_upstream_core", "official_trm_ccb"} or config.evaluation_weights == "ema"
+        ema: ExponentialMovingAverage | None = (
+            ExponentialMovingAverage(model, config.ema_decay) if needs_ema else None
+        )
         act_state = None
         if checkpoint_path.exists():
             if model_name in {"trm_upstream_core", "official_trm_ccb"}:
-                ema = ExponentialMovingAverage(model, config.ema_decay)
                 start_step, checkpoint_payload = load_checkpoint(
                     checkpoint_path, model=model, optimizer=optimizer, device=config.device,
                     ema=ema, return_payload=True,
@@ -324,7 +346,8 @@ def run_experiment_matrix(
                 act_state = checkpoint_payload.get("act_carry")
             else:
                 start_step = load_checkpoint(
-                    checkpoint_path, model=model, optimizer=optimizer, device=config.device
+                    checkpoint_path, model=model, optimizer=optimizer, device=config.device,
+                    ema=ema,
                 )
 
         def checkpoint_if_due(
@@ -344,6 +367,8 @@ def run_experiment_matrix(
                     config=train_config,
                     codec=codec,
                     step=step,
+                    ema=ema,
+                    dataset_manifest_hash=manifest["manifest_hash"],
                 )
 
         if model_name in {"trm_upstream_core", "official_trm_ccb"}:
@@ -355,13 +380,18 @@ def run_experiment_matrix(
                         act_carry=(carry, pending), dataset_manifest_hash=manifest["manifest_hash"],
                     )
 
-            optimizer, ema, _, history = train_trm_act_batches(
+            optimizer, ema, final_act_state, history = train_trm_act_batches(
                 model, _act_batch_stream(splits["train"], config, seed), train_config,
                 device=config.device, log_callback=jsonl_logger(run_directory / "train.jsonl"),
                 optimizer=optimizer, ema=ema, act_state=act_state, start_step=start_step,
                 checkpoint_callback=act_checkpoint_if_due,
             )
-            evaluation_model = ema.evaluation_model
+            if config.evaluation_weights == "live":
+                evaluation_model = model
+                evaluation_weight_source = "live"
+            else:
+                evaluation_model = ema.evaluation_model
+                evaluation_weight_source = "ema"
         else:
             optimizer, history = train_batches(
                 model,
@@ -370,33 +400,69 @@ def run_experiment_matrix(
                 device=config.device,
                 log_callback=jsonl_logger(run_directory / "train.jsonl"),
                 optimizer=optimizer,
+                ema=ema,
                 start_step=start_step,
                 checkpoint_callback=checkpoint_if_due,
             )
-            evaluation_model = model
+            if config.evaluation_weights == "ema":
+                if ema is None:
+                    raise RuntimeError("EMA evaluation requested without an EMA model")
+                evaluation_model = ema.evaluation_model
+                evaluation_weight_source = "ema"
+            else:
+                evaluation_model = model
+                evaluation_weight_source = "live"
         evaluations = {}
-        for split_name in ("validation", "test_depth", "test_strong"):
+        evaluation_batch_size = config.evaluation_batch_size or config.batch_size
+        for split_name in config.evaluation_splits:
             evaluations[split_name] = evaluate_model(
                 evaluation_model,
                 make_dataloader(
-                    splits[split_name], batch_size=config.batch_size, shuffle=False
+                    splits[split_name], batch_size=evaluation_batch_size, shuffle=False
                 ),
                 device=config.device,
                 bootstrap_resamples=config.bootstrap_resamples,
                 bootstrap_seed=seed,
             )
+        live_evaluations = None
+        if config.record_live_evaluation and evaluation_weight_source != "live":
+            live_evaluations = {}
+            for split_name in config.evaluation_splits:
+                live_evaluations[split_name] = evaluate_model(
+                    model,
+                    make_dataloader(
+                        splits[split_name], batch_size=evaluation_batch_size, shuffle=False
+                    ),
+                    device=config.device,
+                    bootstrap_resamples=config.bootstrap_resamples,
+                    bootstrap_seed=seed,
+                )
         if config.include_official_evaluation:
             evaluations["official_test"] = evaluate_model(
                     evaluation_model,
                 make_dataloader(
                     load_official_episodes(config.domain),
-                    batch_size=config.batch_size,
+                    batch_size=evaluation_batch_size,
                     shuffle=False,
                 ),
                 device=config.device,
                 bootstrap_resamples=config.bootstrap_resamples,
                 bootstrap_seed=seed,
             )
+        if str(config.device).startswith("cuda"):
+            torch.cuda.synchronize(torch.device(config.device))
+        wall_seconds = time.perf_counter() - run_started
+        peak_cuda_memory_gib = (
+            torch.cuda.max_memory_allocated(torch.device(config.device)) / 1024**3
+            if str(config.device).startswith("cuda")
+            else 0.0
+        )
+        token_canvas_length = getattr(getattr(model, "layout", None), "sequence_length", None)
+        block_applications = (
+            config.trm_h_cycles * (config.trm_l_cycles + 1) * config.layers_or_loops
+            if model_name in {"trm_upstream_core", "official_trm_ccb"}
+            else config.layers_or_loops
+        )
         result = {
             "run_hash": run_hash,
             "domain": config.domain,
@@ -406,6 +472,12 @@ def run_experiment_matrix(
             "training_steps": config.steps,
             "last_training_loss": history[-1]["loss"],
             "evaluations": evaluations,
+            "live_evaluations": live_evaluations,
+            "evaluation_weight_source": evaluation_weight_source,
+            "wall_seconds": wall_seconds,
+            "peak_cuda_memory_gib": peak_cuda_memory_gib,
+            "token_canvas_length": token_canvas_length,
+            "block_applications_per_forward": block_applications,
             "environment": _environment(),
             "official_data_commit": OFFICIAL_COMMIT,
             "official_evaluation_used": config.include_official_evaluation,
@@ -418,6 +490,9 @@ def run_experiment_matrix(
             config=train_config,
             codec=codec,
             step=config.steps,
+            ema=ema,
+            act_carry=final_act_state if model_name in {"trm_upstream_core", "official_trm_ccb"} else None,
+            dataset_manifest_hash=manifest["manifest_hash"],
         )
         completed.append(result)
     summary = aggregate_experiment_results(completed)

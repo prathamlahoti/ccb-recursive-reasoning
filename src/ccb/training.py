@@ -318,6 +318,7 @@ def train_batches(
     device: torch.device | str = "cpu",
     log_callback: Callable[[Mapping[str, Any]], None] | None = None,
     optimizer: torch.optim.Optimizer | None = None,
+    ema: "ExponentialMovingAverage" | None = None,
     start_step: int = 0,
     checkpoint_callback: Callable[[int, nn.Module, torch.optim.Optimizer], None] | None = None,
 ) -> tuple[torch.optim.Optimizer, list[dict[str, Any]]]:
@@ -348,6 +349,8 @@ def train_batches(
         loss.backward()
         gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
+        if ema is not None:
+            ema.update(model)
         record = {
             "step": step,
             "loss": float(loss.detach()),
