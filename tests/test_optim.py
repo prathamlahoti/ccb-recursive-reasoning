@@ -54,7 +54,8 @@ def test_corrected_fit_ladder_uses_released_training_contract() -> None:
         assert item.trm_l_cycles == 6
         assert item.trm_halt_max_steps == 16
         assert item.official_trm_forward_dtype == "bfloat16"
-        assert item.evaluate_ema is False
+        assert item.evaluate_ema is True
+        assert item.gate_weights == "ema"
     control_names = (
         "d1_token_transformer_fit_8x1_v2.json",
         "d1_token_transformer_fit_16x5_v2.json",

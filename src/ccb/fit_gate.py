@@ -56,6 +56,7 @@ class FitGateConfig:
     lr_min_ratio: float = 0.0
     official_trm_forward_dtype: str = "float32"
     evaluate_ema: bool = True
+    gate_weights: str = "live"
     pass_threshold: float = 0.99
 
     @classmethod
@@ -100,6 +101,10 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
         raise ValueError("learning_rate must be positive")
     if not 0 < config.pass_threshold <= 1:
         raise ValueError("pass_threshold must lie in (0, 1]")
+    if config.gate_weights not in {"live", "ema"}:
+        raise ValueError("gate_weights must be live or ema")
+    if config.gate_weights == "ema" and not config.evaluate_ema:
+        raise ValueError("gate_weights=ema requires evaluate_ema=true")
     if config.model in {*trm_models, "ccb_token_transformer"} and config.trm_max_depth < config.depth:
         raise ValueError("trm_max_depth must be at least the fit-gate depth")
     if config.trm_training_mode == "one_step_supervised" and config.trm_halt_max_steps != 1:
@@ -196,9 +201,12 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
         final_live = evaluate_batch(model, batch)
         final_ema = None
 
+    gate_metrics = final_ema if config.gate_weights == "ema" else final_live
+    if gate_metrics is None:
+        raise RuntimeError("selected gate weights were not evaluated")
     passed = (
-        final_live["final_exact_accuracy"] >= config.pass_threshold
-        and final_live["trace_exact_accuracy"] >= config.pass_threshold
+        gate_metrics["final_exact_accuracy"] >= config.pass_threshold
+        and gate_metrics["trace_exact_accuracy"] >= config.pass_threshold
     )
     result = {
         "schema": "ccb_fit_gate_v2",
@@ -208,6 +216,8 @@ def run_fit_gate(config: FitGateConfig) -> dict[str, Any]:
         "initial_live": initial_live,
         "final_live": final_live,
         "final_ema": final_ema,
+        "gate_weights": config.gate_weights,
+        "gate_metrics": gate_metrics,
         "pass_threshold": config.pass_threshold,
         "passed": passed,
         "first_training_record": history[0],

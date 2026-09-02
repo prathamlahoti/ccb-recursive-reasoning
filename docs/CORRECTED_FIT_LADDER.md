@@ -66,6 +66,14 @@ After Gate A passes, its depth-5 continuation uses the corresponding
 `d1_official_trm_fit_16x5_t4_float32_v2.json` and
 `d1_token_transformer_fit_16x5_t4_float32_v2.json` pair.
 
+After that paired Gate B showed that the Transformer passed while TRM's EMA
+copy reached 87.5% trace exactness at the required 16-step horizon, the only
+authorized follow-up is the TRM-only
+`d1_official_trm_fit_16x5_t4_float32_10k_v3.json` diagnostic. It restarts the
+same 16 examples from the same seed, increases the budget to 10,000 updates,
+and gates explicitly on EMA/max-16 metrics. Gate C remains blocked unless this
+run reaches the original 99% final- and trace-exact thresholds.
+
 ## Sequential gates
 
 | Gate | TRM config | Matched token-Transformer control | Maximum updates |

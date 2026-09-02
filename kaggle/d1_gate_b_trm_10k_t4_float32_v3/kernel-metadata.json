@@ -1,0 +1,18 @@
+{
+  "id": "prathamlahoti2/ccb-d1-gate-b-trm-10k-t4-float32-v3",
+  "title": "CCB D1 Gate B TRM 10K T4 Float32 v3",
+  "code_file": "ccb-d1-gate-b-trm-10k-t4-float32-v3.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": false,
+  "keywords": ["gpu"],
+  "dataset_sources": ["prathamlahoti2/ccb-trm-source-851fd0f"],
+  "kernel_sources": [],
+  "competition_sources": [],
+  "model_sources": [],
+  "docker_image": "gcr.io/kaggle-gpu-images/python",
+  "machine_shape": "NvidiaTeslaT4"
+}
