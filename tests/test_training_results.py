@@ -120,6 +120,13 @@ class TrainingTests(unittest.TestCase):
             )
         )
 
+    def test_ema_rejects_cross_device_updates_before_tensor_math(self) -> None:
+        model = torch.nn.Linear(2, 2)
+        ema = ExponentialMovingAverage(model, 0.9)
+        model.to("meta")
+        with self.assertRaisesRegex(RuntimeError, "move the live model before constructing"):
+            ema.update(model)
+
     def test_act_resume_matches_uninterrupted_training(self) -> None:
         batch = collate_episodes([AlienGridDomain().generate(depth=5, seed=seed) for seed in range(2)])
         full = TrainConfig(

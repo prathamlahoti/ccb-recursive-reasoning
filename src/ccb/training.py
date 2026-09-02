@@ -453,6 +453,11 @@ class ExponentialMovingAverage:
         averaged = self.evaluation_model.state_dict()
         for name, value in averaged.items():
             source = live[name].detach()
+            if value.device != source.device:
+                raise RuntimeError(
+                    "EMA and live model tensors must share a device; move the live model "
+                    "before constructing ExponentialMovingAverage"
+                )
             if torch.is_floating_point(value):
                 value.lerp_(source, 1.0 - self.decay)
             else:

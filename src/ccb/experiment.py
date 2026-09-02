@@ -335,7 +335,10 @@ def run_experiment_matrix(
             json.dumps(run_identity, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         seed_everything(seed)
-        model = build_model(train_config, codec)
+        # EMA is a copied model, so construct it only after the live model is
+        # resident on its final device.  Creating EMA first leaves the copy on
+        # CPU and makes the first CUDA EMA update invalid.
+        model = build_model(train_config, codec).to(config.device)
         run_started = time.perf_counter()
         if str(config.device).startswith("cuda"):
             torch.cuda.reset_peak_memory_stats(torch.device(config.device))

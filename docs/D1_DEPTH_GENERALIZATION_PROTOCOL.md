@@ -124,3 +124,11 @@ Version 1 of the private Kaggle kernel
 `9726ab7f57883cf04570e5a50e30b10b7955c4bc`. Kaggle reported the Version run
 as running after submission. Its outputs are calibration evidence until the
 predeclared multi-seed gate is met; they are not final paper numbers.
+
+The first submission failed before optimizer update 1 because the general
+launcher created both EMA copies on CPU and only then moved the live models to
+CUDA inside the trainers. Both workers therefore rejected their first EMA
+update. This is an execution-order bug, not an experimental outcome. The fix
+moves each live model to its configured device before optimizer and EMA
+construction and adds an explicit cross-device EMA invariant plus regression
+test. Version 1 contributes no accuracy or runtime result.
