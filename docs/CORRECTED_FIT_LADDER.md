@@ -100,3 +100,11 @@ experiment is permitted until Gate C passes.
 
 These are memorization and pipeline-correctness gates, not publishable
 generalization results.
+
+## Completion status
+
+The T4/float32 Gate C Version run completed in 6,867.13 seconds. Both TRM
+(EMA/max-16) and the matched token-Transformer (live) reached 100% final- and
+trace-exact accuracy on 64 fixed depth-5 examples. The diagnostic ladder is
+complete. No further fixed-set fit run is needed; subsequent GPU work must use
+a predeclared train/validation/held-out-depth protocol.

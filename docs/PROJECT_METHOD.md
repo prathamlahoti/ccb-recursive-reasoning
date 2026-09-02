@@ -37,7 +37,7 @@ not an original CCB leaderboard result. The project must say this plainly.
 > Given the complete initial state and full ordered operation/event sequence,
 > can a faithfully ported TRM learn to emit the complete sequence of CCB
 > states and retain transition accuracy at unseen greater depths better than a
-> compute-matched nonrecursive Transformer?
+> parameter-matched nonrecursive Transformer, with compute reported explicitly?
 
 This tests exactly the failure mode CCB was designed to expose: sequential
 state retention under increasing depth. It does **not** test language
@@ -68,11 +68,12 @@ with the frontier LLMs in the CCB paper.
    upstream recurrence semantics, loss masking/normalization, ACT reset,
    copied EMA, and checkpoint-resume; then an ACT-enabled fixed-batch fit
    gate.
-5. **Run one preregistered calibration.** TRM and a compute-matched direct
+5. **Run one preregistered calibration.** TRM and a parameter-matched direct
    Transformer train on exactly the same generated data, seeds, updates,
-   precision, and stopping rule. Model selection uses generated validation
-   only. Evaluate the untouched 400 official records per domain once,
-   afterwards, as transfer.
+   precision, EMA policy, and stopping rule. Model selection uses generated
+   validation only. Report the compute difference explicitly and add a
+   compute-matched ablation before a method-level claim. Evaluate the untouched
+   400 official records per domain once, afterwards, as transfer.
 
 ## Boundaries and non-claims
 

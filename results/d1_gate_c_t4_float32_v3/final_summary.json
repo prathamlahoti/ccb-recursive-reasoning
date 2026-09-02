@@ -1,0 +1,43 @@
+{
+  "schema": "ccb_gate_c_t4_float32_v3_compact",
+  "source_core_commit": "6fbcf8453940e9d5b27833a00f5c4f8503ef468d",
+  "purpose": "T4 float32 64-example fit diagnostic; not released-precision evidence",
+  "wall_seconds": 6867.1301102638245,
+  "gate_passed": true,
+  "results": {
+    "trm": {
+      "gate_weights": "ema",
+      "initial_live_exact": 0.0,
+      "final_live": {
+        "element_accuracy": 0.9944444894790649,
+        "transition_exact_accuracy": 0.971875011920929,
+        "final_exact_accuracy": 0.9375,
+        "trace_exact_accuracy": 0.859375
+      },
+      "final_ema": {
+        "element_accuracy": 1.0,
+        "transition_exact_accuracy": 1.0,
+        "final_exact_accuracy": 1.0,
+        "trace_exact_accuracy": 1.0
+      },
+      "last_loss": 0.04672785752860926,
+      "last_lm_loss": 0.0040760976423973175,
+      "last_halt_loss": 0.08530351519584656,
+      "passed": true,
+      "firewall_safe": true
+    },
+    "transformer": {
+      "gate_weights": "live",
+      "initial_live_exact": 0.0,
+      "final_live": {
+        "element_accuracy": 1.0,
+        "transition_exact_accuracy": 1.0,
+        "final_exact_accuracy": 1.0,
+        "trace_exact_accuracy": 1.0
+      },
+      "last_loss": 0.0017038197256624699,
+      "passed": true,
+      "firewall_safe": true
+    }
+  }
+}

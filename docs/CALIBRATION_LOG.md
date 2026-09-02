@@ -240,3 +240,24 @@ reported experiments.
 This establishes only fixed-set optimization correctness. It is neither a
 generalization result nor evidence that TRM beats the matched Transformer.
 Gate C—the paired 64-example depth-5 fit check—is now eligible.
+
+## D1 corrected Gate C — paired 64-example T4 diagnostic v3
+
+- Status: completed successfully; **both fit controls passed**.
+- Execution: private Kaggle Version 1, one process per Tesla T4 GPU.
+- Verified model-core commit: `6fbcf8453940e9d5b27833a00f5c4f8503ef468d`.
+- Wall time: 6,867.13 seconds (1.91 hours).
+- Compact result: [`results/d1_gate_c_t4_float32_v3/final_summary.json`](../results/d1_gate_c_t4_float32_v3/final_summary.json).
+
+On the same 64 fixed firewalled D1 depth-5 examples, both predeclared gate
+sources reached 100% element, transition-exact, final-exact, and trace-exact
+accuracy: EMA/max-16 for TRM and live weights for the matched token-
+Transformer. TRM live weights reached 99.44% element, 97.19% transition,
+93.75% final, and 85.94% trace exactness; the difference confirms that EMA is
+material and must remain explicit in every subsequent comparison.
+
+This completes the fit ladder and establishes that the corrected model/data
+paths can optimize a moderately sized fixed set. It does not measure unseen
+depth, unseen structure, or official CCB performance. The next eligible work
+is a predeclared held-out-depth experiment using generated training data; the
+sealed official records remain untouched until the final transfer evaluation.
