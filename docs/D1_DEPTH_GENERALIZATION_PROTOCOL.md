@@ -81,8 +81,9 @@ depth AUC, valid-state rate, and TFBC with confidence intervals.
    size. Do not reduce the scientific split or silently change precision to
    make the job fit.
 
-The launcher corrections are implemented locally. The remaining readiness
-gate is the private `ccb-d1-depth50-resource-calibration-v1` Version run,
+The launcher corrections are implemented and locally verified. The remaining
+readiness gate is the private `ccb-d1-depth-50-resource-calibration-v1`
+Version run, launched server-side on 2026-09-03,
 which tests batch sizes 1, 2, 4, and 8 independently for each model and saves
 partial results after every successful batch size. Until that calibration
 completes, the held-out-depth job is not GPU-ready.
