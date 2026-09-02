@@ -1,7 +1,8 @@
 # Corrected CCB–TRM Fit Ladder v2
 
-Status: implemented and CPU-verified on 2026-08-30. No v2 GPU gate has been
-launched.
+Status: implemented and CPU-verified. Commit
+`6fbcf8453940e9d5b27833a00f5c4f8503ef468d` was uploaded to the private
+Kaggle source dataset on 2026-09-02. No v2 GPU gate has been launched.
 
 ## Why v1 is invalid as a TRM fit verdict
 
