@@ -15,6 +15,9 @@ WORKING = Path("/kaggle/working")
 OUTPUT = WORKING / "d1-depth50-resource-calibration-v1"
 OUTPUT.mkdir(parents=True, exist_ok=True)
 CANDIDATE_BATCH_SIZES = (1, 2, 4, 8)
+# Version 1 durably saved the complete TRM calibration.  Version 2 is an
+# intentionally bounded retry of only the failed Transformer worker.
+CALIBRATION_MODELS = ("ccb_token_transformer",)
 
 
 def atomic_json(path: Path, payload: object) -> None:
@@ -82,7 +85,12 @@ def worker(project: Path, model_name: str) -> None:
                 loss, _, _ = trm_sequence_loss(output, q_halt, batch)
             else:
                 output = model(batch)
-                loss = supervised_loss(output, batch.targets, step_mask=batch.step_mask)
+                loss = supervised_loss(
+                    output,
+                    batch.targets,
+                    loop_supervision_weight=0.0,
+                    step_mask=batch.step_mask,
+                )
             loss.backward()
             torch.cuda.synchronize(device)
             record["train_step_seconds"] = time.perf_counter() - started
@@ -126,7 +134,7 @@ def controller() -> None:
     })
     processes, logs = {}, {}
     try:
-        for gpu, model_name in enumerate(("official_trm_ccb", "ccb_token_transformer")):
+        for gpu, model_name in enumerate(CALIBRATION_MODELS):
             log = (OUTPUT / f"{model_name}.log").open("w", encoding="utf-8", buffering=1)
             logs[model_name] = log
             environment = os.environ.copy()

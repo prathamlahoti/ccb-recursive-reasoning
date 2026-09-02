@@ -1,0 +1,49 @@
+{
+  "model": "official_trm_ccb",
+  "parameters": 6838274,
+  "records": [
+    {
+      "batch_size": 1,
+      "eval_ok": true,
+      "eval_peak_gib": 0.06514596939086914,
+      "eval_seconds": 0.9808315639999989,
+      "train_ok": true,
+      "train_peak_gib": 0.35347938537597656,
+      "train_step_seconds": 1.347739912999998
+    },
+    {
+      "batch_size": 2,
+      "eval_ok": true,
+      "eval_peak_gib": 0.09332895278930664,
+      "eval_seconds": 1.790648831999988,
+      "train_ok": true,
+      "train_peak_gib": 0.6660499572753906,
+      "train_step_seconds": 0.19906064700001025
+    },
+    {
+      "batch_size": 4,
+      "eval_ok": true,
+      "eval_peak_gib": 0.13773202896118164,
+      "eval_seconds": 3.4849027900000067,
+      "train_ok": true,
+      "train_peak_gib": 1.2821578979492188,
+      "train_step_seconds": 0.3912968109999895
+    },
+    {
+      "batch_size": 8,
+      "eval_ok": true,
+      "eval_peak_gib": 0.23190927505493164,
+      "eval_seconds": 6.7931207610000115,
+      "train_ok": true,
+      "train_peak_gib": 2.516815185546875,
+      "train_step_seconds": 0.7844233330000066
+    }
+  ],
+  "schema": "ccb_depth50_resource_calibration_v1",
+  "source": {
+    "kaggle_kernel": "prathamlahoti2/ccb-d1-depth-50-resource-calibration-v1",
+    "kaggle_version": 1,
+    "note": "The worker completed successfully even though the controller failed because the separate Transformer worker exited nonzero. Accuracy smoke values were omitted here because this calibration used untrained weights and makes no accuracy claim."
+  },
+  "token_canvas_length": 512
+}

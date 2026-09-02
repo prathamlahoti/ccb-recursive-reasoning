@@ -81,9 +81,14 @@ depth AUC, valid-state rate, and TFBC with confidence intervals.
    size. Do not reduce the scientific split or silently change precision to
    make the job fit.
 
-The launcher corrections are implemented and locally verified. The remaining
-readiness gate is the private `ccb-d1-depth-50-resource-calibration-v1`
-Version run, launched server-side on 2026-09-03,
-which tests batch sizes 1, 2, 4, and 8 independently for each model and saves
-partial results after every successful batch size. Until that calibration
-completes, the held-out-depth job is not GPU-ready.
+The launcher corrections are implemented and locally verified. The private
+`ccb-d1-depth-50-resource-calibration-v1` Version 1 run on 2026-09-03 tested
+batch sizes 1, 2, 4, and 8 and saved partial results after every successful
+batch size. The TRM worker completed all four sizes. Its batch-8 training step
+used 2.517 GiB and 0.784 seconds; its full max-16 evaluation used 0.232 GiB
+and 6.793 seconds. The Transformer worker failed before its first measurement
+because the calibration wrapper omitted the required explicit
+`loop_supervision_weight=0.0` argument to `supervised_loss`. This was a wrapper
+failure, not an out-of-memory or model failure. Version 2 is limited to the
+corrected Transformer worker; the successful Version 1 TRM data are retained.
+The held-out-depth job remains gated until that retry completes.
