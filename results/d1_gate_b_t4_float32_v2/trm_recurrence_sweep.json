@@ -1,0 +1,32 @@
+{
+  "schema": "ccb_trm_recurrence_sweep_v1_compact",
+  "checkpoint_step": 4000,
+  "live": {
+    "step_1": {
+      "element_accuracy": 0.9972222447395325,
+      "transition_exact_accuracy": 0.987500011920929,
+      "final_exact_accuracy": 1.0,
+      "trace_exact_accuracy": 0.9375
+    },
+    "step_16": {
+      "element_accuracy": 0.9402777552604675,
+      "transition_exact_accuracy": 0.699999988079071,
+      "final_exact_accuracy": 0.6875,
+      "trace_exact_accuracy": 0.3125
+    }
+  },
+  "ema": {
+    "step_1": {
+      "element_accuracy": 1.0,
+      "transition_exact_accuracy": 1.0,
+      "final_exact_accuracy": 1.0,
+      "trace_exact_accuracy": 1.0
+    },
+    "step_16": {
+      "element_accuracy": 0.9972222447395325,
+      "transition_exact_accuracy": 0.9750000238418579,
+      "final_exact_accuracy": 1.0,
+      "trace_exact_accuracy": 0.875
+    }
+  }
+}

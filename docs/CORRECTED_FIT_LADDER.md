@@ -40,8 +40,12 @@ Transformer receive identical token tensors.
 The v2 TRM gates use width 512, 8 heads, 2 shared L layers, H/L cycles 3/6,
 ACT horizon 16, bfloat16 forward precision, AdamATan2 with betas `(0.9, 0.95)`,
 weight decay `0.1`, learning rate `1e-4`, 2,000 warm-up updates, and
-`lr_min_ratio=1.0`. Live weights determine gate passage. EMA evaluation is
-disabled and may be added later only as an explicit ablation.
+`lr_min_ratio=1.0`. The released repository defaults EMA off in its generic
+configuration, but all documented task-result commands enable `ema=True` and
+switch to the EMA copy for evaluation. Therefore an upstream-style
+reported-result gate must use the EMA copy, while also retaining live metrics
+for diagnosis. Evaluation runs the full 16 ACT steps, matching the upstream
+batching rule; selecting a better post-hoc recurrence step is not allowed.
 
 Puzzle-ID embeddings remain disabled. CCB generated instances do not have a
 non-leaking persistent puzzle identity; assigning one ID per instance would

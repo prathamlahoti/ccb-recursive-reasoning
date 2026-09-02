@@ -186,3 +186,35 @@ this run substituted float32 for the released bfloat16 precision because T4
 lacks native bfloat16. Gate B (16 fixed examples at depth 5) is now eligible as
 the next diagnostic; a released-precision result still requires suitable
 native-bfloat16 hardware.
+
+## D1 corrected Gate B — paired T4 float32 diagnostic v2
+
+- Status: completed successfully; **Transformer passed, TRM failed the
+  predeclared live/max-16 rule**.
+- Execution: private Kaggle Version 1, one process per Tesla T4 GPU.
+- Verified model-core commit: `6fbcf8453940e9d5b27833a00f5c4f8503ef468d`.
+- Wall time: 857.43 seconds.
+- Compact result: [`results/d1_gate_b_t4_float32_v2/final_summary.json`](../results/d1_gate_b_t4_float32_v2/final_summary.json).
+- Recurrence sweep: [`results/d1_gate_b_t4_float32_v2/trm_recurrence_sweep.json`](../results/d1_gate_b_t4_float32_v2/trm_recurrence_sweep.json).
+
+The matched token-Transformer memorized all 16 depth-5 traces exactly. At the
+predeclared 16-step live-weight evaluation point, TRM reached 94.03% element,
+70.00% transition-exact, 68.75% final-exact, and 31.25% trace-exact accuracy.
+Therefore Gate B did not pass and Gate C must not run.
+
+A post-hoc recurrence sweep, reported separately rather than replacing the
+predeclared result, showed that repeated inference degraded the live model:
+step 1 had 100% final and 93.75% trace exactness, while step 16 had 68.75% and
+31.25%. The saved EMA model reached 100% final/trace exactness at step 1 and
+100% final/87.5% trace exactness at step 16. Thus the corrected TRM learned
+almost all of the tiny fixed set, but it had not learned a stable fixed point
+under the released 16-step evaluation horizon.
+
+The upstream repository's reported experiment commands set `ema=True`, and
+its evaluator explicitly runs all rows for `halt_max_steps=16`. Consequently,
+the faithful upstream-style reading of this checkpoint is the EMA step-16
+result—not the perfect post-hoc EMA step-1 result. This still fails the 99%
+trace gate (14/16 traces). The earlier decision to make live weights the sole
+faithful gate was too strict relative to the reported upstream commands and
+must be corrected before another TRM fit run. This correction does not turn
+Gate B into a pass and does not authorize Gate C.
