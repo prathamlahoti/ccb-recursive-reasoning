@@ -59,8 +59,6 @@ def worker(project: Path, model_name: str) -> None:
         ExponentialMovingAverage,
         TrainConfig,
         build_model,
-        build_optimizer,
-        load_checkpoint,
     )
 
     device = torch.device("cuda")
@@ -83,14 +81,14 @@ def worker(project: Path, model_name: str) -> None:
     config = TrainConfig(**checkpoint_header["config"])
     codec = codec_for(train[0])
     model = build_model(config, codec).to(device)
-    optimizer = build_optimizer(model, config)
     ema = ExponentialMovingAverage(model, config.ema_decay)
-    step, restored = load_checkpoint(
-        checkpoint, model=model, optimizer=optimizer, device=device, ema=ema,
-        return_payload=True,
-    )
-    if step != 10_000 or restored.get("ema_state") is None:
-        raise RuntimeError(f"incomplete checkpoint: step={step}, ema={restored.get('ema_state') is not None}")
+    model.load_state_dict(checkpoint_header["model_state"])
+    if checkpoint_header.get("ema_state") is None:
+        raise RuntimeError("checkpoint has no EMA state")
+    ema.load_state_dict(checkpoint_header["ema_state"])
+    step = int(checkpoint_header["step"])
+    if step != 10_000:
+        raise RuntimeError(f"incomplete checkpoint: step={step}")
 
     started = time.perf_counter()
     live = evaluate_model(

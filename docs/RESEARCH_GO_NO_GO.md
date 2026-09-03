@@ -58,6 +58,14 @@ live/EMA checkpoints, regenerates and hash-verifies the exact 400 training
 episodes, and evaluates both weight sources without performing an optimizer
 step. The official records are not evaluated.
 
+Version 1 failed before evaluation because the generic checkpoint loader mapped
+the saved CPU RNG-state tensor to CUDA and then passed it to PyTorch's CPU RNG
+API. Checkpoint discovery, identity, and manifest validation had already
+passed. Version 1 therefore produced no metric. The evaluation-only retry loads
+only live and EMA model weights and does not restore optimizer or RNG state.
+The generic resume loader is separately corrected to move saved CPU/CUDA RNG
+state byte tensors to CPU before calling PyTorch's RNG restoration APIs.
+
 ## Conditions for continuing toward a paper
 
 Continue only if a clearly motivated change produces all of the following:

@@ -538,9 +538,14 @@ def load_checkpoint(
         raise ValueError(f"unsupported checkpoint schema in {path}")
     model.load_state_dict(payload["model_state"])
     optimizer.load_state_dict(payload["optimizer_state"])
-    torch.set_rng_state(payload["torch_rng_state"])
+    # ``map_location=device`` also moves the CPU generator state. PyTorch's
+    # CPU RNG API requires a CPU ByteTensor even when model/optimizer state is
+    # restored directly onto CUDA.
+    torch.set_rng_state(payload["torch_rng_state"].cpu())
     if torch.cuda.is_available() and payload.get("cuda_rng_states") is not None:
-        torch.cuda.set_rng_state_all(payload["cuda_rng_states"])
+        torch.cuda.set_rng_state_all(
+            [state.cpu() for state in payload["cuda_rng_states"]]
+        )
     if payload.get("python_random_state") is not None:
         random.setstate(payload["python_random_state"])
     if ema is not None and payload.get("ema_state") is not None:
