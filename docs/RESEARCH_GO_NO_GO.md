@@ -52,7 +52,7 @@ Run exactly one checkpoint-only diagnostic on the already trained models:
    local transition objective.
 
 The private Kaggle execution harness for this gate is
-`prathamlahoti2/ccb-d1-checkpoint-train-eval-v1`. It consumes Version 2 of the
+`prathamlahoti2/ccb-d1-checkpoint-train-evaluation-v1`. It consumes Version 2 of the
 completed generalization kernel as a read-only input, restores the two step-10k
 live/EMA checkpoints, regenerates and hash-verifies the exact 400 training
 episodes, and evaluates both weight sources without performing an optimizer
