@@ -138,3 +138,58 @@ Version 2 was submitted on 2026-09-03 from corrected source commit
 tests passed, including both training paths and a regression check that rejects
 cross-device EMA updates before tensor arithmetic. Kaggle reported Version 2
 as running after submission.
+
+## Seed-17 outcome
+
+Version 2 completed after 9,781 seconds (2.72 hours). Both workers reached all
+10,000 updates, both final checkpoints and ledgers were retained, and the two
+manifests have the identical hash
+`f589979a22625a7d0ba68c05194d663fac5013d27c7e732f6c92537593e49167`.
+The manifests contain only train, validation, and `test_depth`; all generated instances and
+program fingerprints are disjoint, all official-firewall checks pass, and
+official evaluation was not run.
+
+EMA is the predeclared primary result:
+
+| Split / metric | Official TRM CCB | Token Transformer |
+| --- | ---: | ---: |
+| Validation final exact | 0.00% | 1.00% |
+| Validation trace exact | 0.00% | 0.00% |
+| Validation transition exact | 12.40% | 22.48% |
+| Validation element accuracy | 36.92% | 45.43% |
+| Validation mean first divergence | 2.53 | 3.74 |
+| Depth 25--50 final exact | 0.00% | 0.00% |
+| Depth 25--50 trace exact | 0.00% | 0.00% |
+| Depth 25--50 transition exact | 3.85% | 5.78% |
+| Depth 25--50 element accuracy | 21.57% | 21.92% |
+| Depth 25--50 valid-state rate | 4.94% | 6.15% |
+| Depth 25--50 mean first divergence | 2.41 | 3.13 |
+
+Held-out EMA transition exact accuracy by depth:
+
+| Depth | Official TRM CCB | Token Transformer |
+| ---: | ---: | ---: |
+| 25 | 5.92% | 10.84% |
+| 30 | 5.13% | 9.40% |
+| 35 | 4.40% | 7.74% |
+| 40 | 3.62% | 6.12% |
+| 45 | 3.33% | 4.69% |
+| 50 | 2.30% | 0.40% |
+
+The Transformer finished its worker in 743 seconds using 0.469 GiB peak CUDA
+memory. TRM required 9,764 seconds and 2.596 GiB, consistent with 42 versus two
+transformer-block applications per inner forward. EMA modestly improved both
+models, so weight-source choice does not explain the negative result.
+
+This is a valid negative calibration, not a TRM advantage. Both models fail at
+new examples even within the training depth range; the Transformer is stronger
+than TRM on aggregate validation and held-out transition accuracy, while both
+score zero held-out final/trace exact. The final training losses (TRM 1.162;
+Transformer 0.544) are also far from the fixed-set fit-gate regime. Therefore
+multi-seed replication, D2/D3 transfer, and official evaluation are blocked.
+
+The next bounded diagnostic is evaluation of the saved live and EMA checkpoints
+on the exact 400 training episodes, without additional optimization. High train
+accuracy with low validation indicates memorization/data insufficiency; low
+train accuracy indicates optimization or training-contract failure. That
+diagnostic must precede any new training run.

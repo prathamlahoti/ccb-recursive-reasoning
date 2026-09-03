@@ -1,0 +1,85 @@
+{
+  "schema": "ccb_d1_depth_generalization_seed17_float32_v1_compact",
+  "status": "completed_negative_calibration",
+  "source_commit": "25f2c3579d726d912e787242ec01997f65d94f81",
+  "kaggle_kernel": "prathamlahoti2/ccb-d1-depth-generalization-seed17-float32-v1",
+  "kaggle_version": 2,
+  "dataset_manifest_hash": "f589979a22625a7d0ba68c05194d663fac5013d27c7e732f6c92537593e49167",
+  "official_evaluation_used": false,
+  "wall_seconds": 9781.297685861588,
+  "models": {
+    "official_trm_ccb": {
+      "run_hash": "274b96ec7e72",
+      "parameters": 6838274,
+      "block_applications_per_forward": 42,
+      "wall_seconds": 9763.877365779,
+      "peak_cuda_memory_gib": 2.5963072776794434,
+      "last_training_loss": 1.16220473167992,
+      "tail_500_mean_training_loss": 1.10463621744963,
+      "minimum_observed_training_loss": 0.507459201461056,
+      "ema_validation": {
+        "final_exact_accuracy": 0.0,
+        "trace_exact_accuracy": 0.0,
+        "transition_exact_accuracy": 0.124,
+        "element_accuracy": 0.36924444444444443,
+        "valid_state_rate": 0.1624,
+        "mean_first_divergence_k_star": 2.53
+      },
+      "ema_test_depth": {
+        "final_exact_accuracy": 0.0,
+        "trace_exact_accuracy": 0.0,
+        "transition_exact_accuracy": 0.03848888888888889,
+        "element_accuracy": 0.21569382716049382,
+        "valid_state_rate": 0.04942222222222222,
+        "mean_first_divergence_k_star": 2.41
+      },
+      "ema_test_transition_by_depth": {
+        "25": 0.0592,
+        "30": 0.051333333333333335,
+        "35": 0.044,
+        "40": 0.03625,
+        "45": 0.03333333333333333,
+        "50": 0.023
+      },
+      "live_validation_transition_accuracy": 0.0952,
+      "live_test_depth_transition_accuracy": 0.025866666666666667
+    },
+    "ccb_token_transformer": {
+      "run_hash": "48001de74f6a",
+      "parameters": 6326272,
+      "block_applications_per_forward": 2,
+      "wall_seconds": 742.528534023,
+      "peak_cuda_memory_gib": 0.46915102005004883,
+      "last_training_loss": 0.5443111658096313,
+      "tail_500_mean_training_loss": 0.443942999824882,
+      "minimum_observed_training_loss": 0.0495731718838215,
+      "ema_validation": {
+        "final_exact_accuracy": 0.01,
+        "trace_exact_accuracy": 0.0,
+        "transition_exact_accuracy": 0.2248,
+        "element_accuracy": 0.4543111111111111,
+        "valid_state_rate": 0.2424,
+        "mean_first_divergence_k_star": 3.74
+      },
+      "ema_test_depth": {
+        "final_exact_accuracy": 0.0,
+        "trace_exact_accuracy": 0.0,
+        "transition_exact_accuracy": 0.057777777777777775,
+        "element_accuracy": 0.2192148148148148,
+        "valid_state_rate": 0.061511111111111114,
+        "mean_first_divergence_k_star": 3.1283333333333334
+      },
+      "ema_test_transition_by_depth": {
+        "25": 0.1084,
+        "30": 0.094,
+        "35": 0.07742857142857143,
+        "40": 0.06125,
+        "45": 0.04688888888888889,
+        "50": 0.004
+      },
+      "live_validation_transition_accuracy": 0.216,
+      "live_test_depth_transition_accuracy": 0.05471111111111111
+    }
+  },
+  "interpretation": "Neither model learned reliable execution. Transformer exceeds TRM on validation and aggregate held-out transition accuracy, while both have zero held-out final and trace exact accuracy. Do not run multiple seeds or claim a TRM advantage until training-set checkpoint evaluation distinguishes underfitting from memorization."
+}
