@@ -51,6 +51,13 @@ Run exactly one checkpoint-only diagnostic on the already trained models:
    scaling: it memorized 400 programs and needs a redesigned data curriculum or
    local transition objective.
 
+The private Kaggle execution harness for this gate is
+`prathamlahoti2/ccb-d1-checkpoint-train-eval-v1`. It consumes Version 2 of the
+completed generalization kernel as a read-only input, restores the two step-10k
+live/EMA checkpoints, regenerates and hash-verifies the exact 400 training
+episodes, and evaluates both weight sources without performing an optimizer
+step. The official records are not evaluated.
+
 ## Conditions for continuing toward a paper
 
 Continue only if a clearly motivated change produces all of the following:
