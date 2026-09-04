@@ -188,8 +188,24 @@ score zero held-out final/trace exact. The final training losses (TRM 1.162;
 Transformer 0.544) are also far from the fixed-set fit-gate regime. Therefore
 multi-seed replication, D2/D3 transfer, and official evaluation are blocked.
 
-The next bounded diagnostic is evaluation of the saved live and EMA checkpoints
-on the exact 400 training episodes, without additional optimization. High train
-accuracy with low validation indicates memorization/data insufficiency; low
-train accuracy indicates optimization or training-contract failure. That
-diagnostic must precede any new training run.
+## Checkpoint-only training evaluation
+
+The bounded diagnostic completed as Version 2 of
+`prathamlahoti2/ccb-d1-checkpoint-train-evaluation-v1`. It regenerated and
+hash-verified the exact 400 training episodes, loaded the saved step-10,000 live
+and EMA checkpoints, and performed no optimization or official evaluation.
+
+TRM training final-exact accuracy was 0.75% live and 0.50% EMA. Transformer
+training final-exact accuracy was 57.25% live and 53.75% EMA. TRM therefore
+failed to learn the mixed-depth training distribution. The Transformer fit the
+depth-5 subset (99% live, 100% EMA) but degraded at depths 10, 15, and 20,
+showing that the present training recipe also does not master the complete
+training support for the control.
+
+This closes the seed-17 decision gate. The current recipe is stopped; no
+multi-seed, D2/D3, or sealed official-record evaluation is warranted. Any
+continuation must first change the training hypothesis—most plausibly a staged
+depth curriculum and/or local transition supervision—and demonstrate
+near-perfect train and same-depth validation performance through depth 20 in a
+new predeclared gate. The compact diagnostic artifact is
+`results/d1_checkpoint_train_evaluation_v1/summary.json`.

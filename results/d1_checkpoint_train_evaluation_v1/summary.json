@@ -1,0 +1,57 @@
+{
+  "schema": "ccb_d1_checkpoint_train_eval_compact_v1",
+  "purpose": "checkpoint-only train-distribution diagnostic; no optimization",
+  "kaggle_kernel": "prathamlahoti2/ccb-d1-checkpoint-train-evaluation-v1",
+  "kaggle_version": 2,
+  "source_commit": "25f2c3579d726d912e787242ec01997f65d94f81",
+  "checkpoint_step": 10000,
+  "dataset_manifest_hash": "f589979a22625a7d0ba68c05194d663fac5013d27c7e732f6c92537593e49167",
+  "training_examples": 400,
+  "training_depths": [5, 10, 15, 20],
+  "official_evaluation_used": false,
+  "wall_seconds": 872.2,
+  "models": {
+    "official_trm_ccb": {
+      "live": {
+        "final_exact_accuracy": 0.0075,
+        "trace_exact_accuracy": 0.0,
+        "transition_exact_accuracy": 0.1088,
+        "element_accuracy": 0.4295777777777778,
+        "valid_state_rate": 0.1372,
+        "mean_first_divergence_k_star": 2.1975,
+        "per_depth_final_exact_accuracy": {"5": 0.02, "10": 0.01, "15": 0.0, "20": 0.0}
+      },
+      "ema": {
+        "final_exact_accuracy": 0.005,
+        "trace_exact_accuracy": 0.0,
+        "transition_exact_accuracy": 0.1634,
+        "element_accuracy": 0.5132666666666666,
+        "valid_state_rate": 0.1992,
+        "mean_first_divergence_k_star": 2.9375,
+        "per_depth_final_exact_accuracy": {"5": 0.01, "10": 0.01, "15": 0.0, "20": 0.0}
+      }
+    },
+    "ccb_token_transformer": {
+      "live": {
+        "final_exact_accuracy": 0.5725,
+        "trace_exact_accuracy": 0.3075,
+        "transition_exact_accuracy": 0.5856,
+        "element_accuracy": 0.918,
+        "valid_state_rate": 0.5926,
+        "mean_first_divergence_k_star": 5.765342960288809,
+        "per_depth_final_exact_accuracy": {"5": 0.99, "10": 0.75, "15": 0.32, "20": 0.23}
+      },
+      "ema": {
+        "final_exact_accuracy": 0.5375,
+        "trace_exact_accuracy": 0.32,
+        "transition_exact_accuracy": 0.5804,
+        "element_accuracy": 0.9097555555555555,
+        "valid_state_rate": 0.592,
+        "mean_first_divergence_k_star": 5.981617647058823,
+        "per_depth_final_exact_accuracy": {"5": 1.0, "10": 0.77, "15": 0.27, "20": 0.11}
+      }
+    }
+  },
+  "decision": "stop_current_recipe",
+  "reason": "TRM fails on its exact training distribution; Transformer fits shallow examples but degrades sharply with training depth."
+}

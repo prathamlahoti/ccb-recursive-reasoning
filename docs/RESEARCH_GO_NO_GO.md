@@ -1,6 +1,6 @@
 # TRM on CCB: Research Go/No-Go Decision
 
-Date: 2026-09-03
+Date: 2026-09-04
 
 ## Current verdict
 
@@ -25,9 +25,11 @@ The present seed-17 result is a valid negative calibration:
 - TRM costs approximately 13.2 times more wall time in this run and applies 42
   transformer blocks per inner forward versus two for the control.
 
-These results do not support a SOTA claim or a TRM advantage. They also do not
-yet establish that TRM fundamentally cannot help: training-set accuracy was not
-recorded, so optimization failure and memorization remain unresolved.
+These results do not support a SOTA claim or a TRM advantage. The subsequent
+checkpoint-only training evaluation resolves the immediate ambiguity: the
+current TRM configuration did not learn its own 400-example training
+distribution. This rejects the present recipe, not the broader hypothesis that
+a redesigned recurrent objective or curriculum could help.
 
 ## Why absence of prior work is unsurprising
 
@@ -66,6 +68,44 @@ only live and EMA model weights and does not restore optimizer or RNG state.
 The generic resume loader is separately corrected to move saved CPU/CUDA RNG
 state byte tensors to CPU before calling PyTorch's RNG restoration APIs.
 
+Version 2 completed successfully in 872.2 seconds on two T4 GPUs. It used the
+saved step-10,000 checkpoints and the exact regenerated training split with
+manifest hash
+`f589979a22625a7d0ba68c05194d663fac5013d27c7e732f6c92537593e49167`.
+No optimization or official-record evaluation occurred.
+
+### Training-distribution results
+
+| Model | Weights | Final exact | Trace exact | Transition exact | Element accuracy | Valid-state rate | Mean first divergence |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| TRM | live | 0.75% | 0.00% | 10.88% | 42.96% | 13.72% | 2.20 |
+| TRM | EMA | 0.50% | 0.00% | 16.34% | 51.33% | 19.92% | 2.94 |
+| Transformer | live | 57.25% | 30.75% | 58.56% | 91.80% | 59.26% | 5.77 |
+| Transformer | EMA | 53.75% | 32.00% | 58.04% | 90.98% | 59.20% | 5.98 |
+
+Final-exact accuracy by training depth shows that the Transformer essentially
+learned depth 5 but not the whole mixed-depth set; TRM failed at every depth.
+
+| Model/weights | Depth 5 | Depth 10 | Depth 15 | Depth 20 |
+|---|---:|---:|---:|---:|
+| TRM live | 2% | 1% | 0% | 0% |
+| TRM EMA | 1% | 1% | 0% | 0% |
+| Transformer live | 99% | 75% | 32% | 23% |
+| Transformer EMA | 100% | 77% | 27% | 11% |
+
+This is not merely an unseen-depth generalization failure. TRM has a training
+or optimization failure on the scaled mixed-depth dataset despite passing the
+small fixed-data fit gates. The Transformer shows a curriculum/capacity issue:
+performance deteriorates sharply as training depth increases. Consequently,
+the current configuration is stopped. More seeds, D2/D3 runs, large-scale
+training, and evaluation on the sealed official records are not justified for
+this recipe.
+
+The durable compact record is
+`results/d1_checkpoint_train_evaluation_v1/summary.json`. The immutable Kaggle
+source is Version 2 of
+`prathamlahoti2/ccb-d1-checkpoint-train-evaluation-v1`.
+
 ## Conditions for continuing toward a paper
 
 Continue only if a clearly motivated change produces all of the following:
@@ -78,12 +118,13 @@ Continue only if a clearly motivated change produces all of the following:
 - ablations identifying why recursion helps rather than merely showing a score.
 
 A plausible paper direction is not “TRM on CCB,” but a controlled study of
-whether recursive refinement can overcome depth-induced error accumulation,
-with a method change such as step-local state-transition supervision or a
-curriculum that explicitly stabilizes recurrent rollout. That is a new research
-hypothesis and must outperform strong recurrent and Transformer controls. If it
-does not, the honest outcome is a negative workshop study, not a new SOTA
-method.
+whether recursive refinement can overcome depth-induced error accumulation.
+The evidence now prioritizes a staged depth curriculum and/or step-local
+transition objective: first require near-perfect training and same-depth
+validation through depth 20, then test depth extrapolation. That is a new
+research hypothesis and must outperform strong recurrent and Transformer
+controls. If it does not, the honest outcome is a negative workshop study, not
+a new SOTA method.
 
 ## Source links
 
