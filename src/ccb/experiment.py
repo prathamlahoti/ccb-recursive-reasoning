@@ -68,6 +68,8 @@ class ExperimentConfig:
     evaluation_splits: tuple[str, ...] = ("validation", "test_depth", "test_strong")
     evaluation_weights: str = "model_default"
     record_live_evaluation: bool = False
+    prefix_frontier_weight: float = 0.0
+    prefix_preservation_weight: float = 0.0
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "ExperimentConfig":
@@ -109,7 +111,8 @@ def _act_batch_stream(episodes: tuple[Any, ...], config: ExperimentConfig, seed:
     never encounter a final short batch or a depth-dependent tensor shape.  We
     sample complete batches with replacement between epochs and pad every trace
     to the largest *training* depth.  Individual valid lengths remain in
-    ``step_mask`` and are the only positions included by attention/loss.
+    ``step_mask`` and are the only positions included by the loss. The token
+    models attend to PAD slots as well; padding is not an attention mask.
     """
 
     if len(episodes) < config.batch_size:
@@ -260,6 +263,10 @@ def run_experiment_matrix(
         raise ValueError("evaluation_splits must be a nonempty subset of generated evaluation splits")
     if config.evaluation_weights not in {"model_default", "live", "ema"}:
         raise ValueError("evaluation_weights must be model_default, live, or ema")
+    if config.prefix_frontier_weight < 0 or config.prefix_preservation_weight < 0:
+        raise ValueError("prefix weights must be nonnegative")
+    if (config.prefix_frontier_weight or config.prefix_preservation_weight) and set(config.models) != {"official_trm_ccb"}:
+        raise ValueError("prefix weighting requires official_trm_ccb")
     plans = [
         {"domain": config.domain, "model": model, "seed": seed}
         for model in config.models
@@ -317,6 +324,8 @@ def run_experiment_matrix(
             lr_warmup_steps=config.lr_warmup_steps,
             lr_min_ratio=config.lr_min_ratio,
             official_trm_forward_dtype=config.official_trm_forward_dtype,
+            prefix_frontier_weight=config.prefix_frontier_weight,
+            prefix_preservation_weight=config.prefix_preservation_weight,
         )
         run_identity = {
             "experiment": asdict(config),
@@ -483,6 +492,13 @@ def run_experiment_matrix(
             "seed": seed,
             "parameters": trainable_parameters(model),
             "training_steps": config.steps,
+            "training_exposure_this_invocation": {
+                "start_step": start_step,
+                "end_step": config.steps,
+                "accepted_example_presentations": sum(item["accepted_examples"] for item in history),
+                "supervised_state_cell_presentations": sum(item["supervised_state_cells"] for item in history),
+                "scope": "this invocation only; sum checkpointed ledger intervals for resumed runs",
+            },
             "last_training_loss": history[-1]["loss"],
             "evaluations": evaluations,
             "live_evaluations": live_evaluations,

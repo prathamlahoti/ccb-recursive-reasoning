@@ -95,8 +95,9 @@ learned depth 5 but not the whole mixed-depth set; TRM failed at every depth.
 
 This is not merely an unseen-depth generalization failure. TRM has a training
 or optimization failure on the scaled mixed-depth dataset despite passing the
-small fixed-data fit gates. The Transformer shows a curriculum/capacity issue:
-performance deteriorates sharply as training depth increases. Consequently,
+small fixed-data fit gates. Transformer performance deteriorates sharply as
+training depth increases; the cause is not isolated by these measurements.
+Consequently,
 the current configuration is stopped. More seeds, D2/D3 runs, large-scale
 training, and evaluation on the sealed official records are not justified for
 this recipe.
@@ -127,6 +128,18 @@ controls. If it does not, the honest outcome is a negative workshop study, not
 a new SOTA method.
 
 ## Source links
+
+Updated literature screening and a proposed mechanism, dated 2026-10-12:
+[TRM research gap assessment](TRM_RESEARCH_GAPS_2026_10_12.md). This adds
+representation/exposure confounds and related work that constrain novelty;
+it does not establish a new method result.
+
+The subsequent [CPU exploration](PREFIX_EXPLORATION_FINDINGS.md) found no
+successful prefix-loss generalisation result and demonstrated a very strong
+D1-specific learned routing baseline. It also added actual ACT exposure counts
+and prefix-regression instrumentation. The earlier prefix proposal is therefore
+an ablation to investigate, not an approved large GPU experiment or a novelty
+claim.
 
 - TRM paper: https://arxiv.org/abs/2510.04871
 - Official TRM repository: https://github.com/SamsungSAILMontreal/TinyRecursiveModels

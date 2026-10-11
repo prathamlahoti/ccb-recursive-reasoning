@@ -22,6 +22,7 @@ from ccb.models import (
 )
 from ccb.models.common import ModelOutput
 from ccb.optim import AdamATan2, official_trm_learning_rate
+from ccb.prefix import prefix_weights, refinement_metrics
 
 
 def stablemax_log_probs(logits: Tensor) -> Tensor:
@@ -33,7 +34,9 @@ def stablemax_log_probs(logits: Tensor) -> Tensor:
 
 
 def trm_sequence_loss(
-    output: ModelOutput, q_halt: Tensor, batch: TransitionBatch
+    output: ModelOutput, q_halt: Tensor, batch: TransitionBatch, *,
+    frontier_weight: float = 0.0, preservation_weight: float = 0.0,
+    previous_predictions: Tensor | None = None, continuing_rows: Tensor | None = None,
 ) -> tuple[Tensor, Tensor, Tensor]:
     """TRM token loss normalized per example plus the released halt BCE term."""
 
@@ -42,7 +45,15 @@ def trm_sequence_loss(
     logits = output.logits.reshape(labels.shape[0], labels.shape[1], -1)
     log_probs = stablemax_log_probs(logits)
     token_loss = -torch.gather(log_probs, -1, labels.unsqueeze(-1)).squeeze(-1)
-    lm_loss = (token_loss * valid).sum(dim=1) / valid.sum(dim=1).clamp_min(1)
+    if frontier_weight or preservation_weight:
+        weights = prefix_weights(
+            output.logits.detach().argmax(-1), batch.targets, batch.step_mask,
+            frontier_weight=frontier_weight, preservation_weight=preservation_weight,
+            previous_predictions=previous_predictions, continuing_rows=continuing_rows,
+        )[:, :, None].expand_as(batch.targets).reshape_as(labels)
+        lm_loss = (token_loss * weights).sum(1) / weights.sum(1).clamp_min(1)
+    else:
+        lm_loss = (token_loss * valid).sum(dim=1) / valid.sum(dim=1).clamp_min(1)
     with torch.no_grad():
         correct = ((logits.argmax(dim=-1) == labels) | ~valid).all(dim=1)
     halt_loss = F.binary_cross_entropy_with_logits(q_halt, correct.to(q_halt.dtype), reduction="none")
@@ -71,6 +82,8 @@ class TrainConfig:
     lr_warmup_steps: int = 0
     lr_min_ratio: float = 0.0
     official_trm_forward_dtype: str = "float32"
+    prefix_frontier_weight: float = 0.0
+    prefix_preservation_weight: float = 0.0
 
 
 def seed_everything(seed: int) -> None:
@@ -356,6 +369,12 @@ def train_batches(
             "loss": float(loss.detach()),
             "gradient_norm": float(gradient_norm.detach()),
             "learning_rate": float(optimizer.param_groups[0]["lr"]),
+            "accepted_examples": int(batch.initial_state.shape[0]),
+            "accepted_depth_counts": {
+                str(int(depth)): int((batch.depths == depth).sum())
+                for depth in batch.depths.unique()
+            },
+            "supervised_state_cells": int(batch.step_mask.sum()) * batch.codec.state_size,
         }
         history.append(record)
         if log_callback is not None:
@@ -387,14 +406,18 @@ def train_trm_act_batches(
 ) -> tuple[torch.optim.Optimizer, "ExponentialMovingAverage", tuple[Any, TransitionBatch], list[dict[str, Any]]]:
     """Train the upstream-derived TRM through its ACT state machine.
 
-    The incoming stream must remain depth-bucketed until every active row has
-    halted. This is enforced by ``PublishedTRMCCB.act_step`` rather than
-    silently resetting recursive state on incompatible sequences.
+    OfficialTRMCCBAdapter accepts mixed depths padded to a fixed tensor shape.
+    PublishedTRMCCB requires compatible depth buckets. Both replace examples
+    only in halted rows; accepted-example counts differ from pending counts.
     """
 
     if start_step < 0 or start_step > config.steps:
         raise ValueError("start_step must be within [0, config.steps]")
     model.to(device)
+    if config.prefix_frontier_weight < 0 or config.prefix_preservation_weight < 0:
+        raise ValueError("prefix weights must be nonnegative")
+    if (config.prefix_frontier_weight or config.prefix_preservation_weight) and not isinstance(model, OfficialTRMCCBAdapter):
+        raise ValueError("prefix weighting requires official_trm_ccb")
     if optimizer is None:
         optimizer = build_optimizer(model, config)
     if ema is None:
@@ -411,8 +434,15 @@ def train_trm_act_batches(
         model.train()
         optimizer.zero_grad(set_to_none=True)
         apply_training_schedule(optimizer, config, step)
+        reset_rows = carry.halted.detach().clone()
+        previous_predictions = getattr(carry, "previous_predictions", None)
         carry, output, (q_halt, _) = model.act_step(carry, pending)
-        loss, lm_loss, halt_loss = trm_sequence_loss(output, q_halt, carry.current_batch)
+        loss, lm_loss, halt_loss = trm_sequence_loss(
+            output, q_halt, carry.current_batch,
+            frontier_weight=config.prefix_frontier_weight,
+            preservation_weight=config.prefix_preservation_weight,
+            previous_predictions=previous_predictions, continuing_rows=~reset_rows,
+        )
         loss.backward()
         gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
@@ -426,7 +456,22 @@ def train_trm_act_batches(
             "act_mean_steps": float(carry.steps.float().mean()),
             "act_halted_fraction": float(carry.halted.float().mean()),
             "learning_rate": float(optimizer.param_groups[0]["lr"]),
+            "accepted_examples": int(reset_rows.sum()),
+            "accepted_depth_counts": {
+                str(int(depth)): int(((pending.depths == depth) & reset_rows).sum())
+                for depth in pending.depths.unique()
+            },
+            "supervised_state_cells": int(carry.current_batch.step_mask.sum()) * carry.current_batch.codec.state_size,
+            "halt_positive_examples": int(
+                (((output.logits.detach().argmax(-1) == carry.current_batch.targets).all(-1)
+                  | ~carry.current_batch.step_mask).all(-1)).sum()
+            ),
         }
+        record.update(refinement_metrics(
+            output.logits.detach().argmax(-1), carry.current_batch.targets,
+            carry.current_batch.step_mask, previous_predictions=previous_predictions,
+            continuing_rows=~reset_rows,
+        ))
         history.append(record)
         if log_callback is not None:
             log_callback(record)

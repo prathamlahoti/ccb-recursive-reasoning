@@ -125,6 +125,7 @@ class CCBOfficialACTCarry:
 
     core: OfficialTRMACTCarry
     current_batch: TransitionBatch
+    previous_predictions: Tensor | None = None
 
     @property
     def steps(self) -> Tensor:
@@ -232,9 +233,10 @@ class OfficialTRMCCBAdapter(nn.Module):
     ) -> tuple[CCBOfficialACTCarry, ModelOutput, tuple[Tensor, Tensor]]:
         current_batch = self._replace_halted_rows(carry.current_batch, batch, carry.core.halted)
         core_carry, outputs = self.core(carry.core, self.input_tokens(batch))
+        output = self._output(outputs["logits"], batch.operations.shape[1])
         return (
-            CCBOfficialACTCarry(core_carry, current_batch),
-            self._output(outputs["logits"], batch.operations.shape[1]),
+            CCBOfficialACTCarry(core_carry, current_batch, output.logits.detach().argmax(-1)),
+            output,
             (outputs["q_halt_logits"], outputs["q_continue_logits"]),
         )
 
