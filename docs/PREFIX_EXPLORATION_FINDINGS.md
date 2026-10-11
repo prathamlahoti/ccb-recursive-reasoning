@@ -152,6 +152,11 @@ to that older experiment.
 
 ## Decision
 
+Novelty clarification: the broad question about recursion helping contextual
+execution or global constraint repair is already studied. It is a direction
+for investigation, not a confirmed gap. See
+[novelty and resource requirements](NOVELTY_AND_COMPUTE_REQUIREMENTS.md).
+
 Do not launch a large prefix-loss GPU matrix from these results. Keep the
 implementation as an explicit ablation and the routing model as a required D1
 control. The gap demonstrated here is in the experimental foundation:
