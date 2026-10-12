@@ -7,6 +7,9 @@ Follow-up: [CPU exploration findings](PREFIX_EXPLORATION_FINDINGS.md).
 The implemented prefix ablation has not established a generalisation benefit;
 a 567-parameter D1-specific learned executor solves all tested generated lengths.
 This raises the baseline requirement and weakens the case for a D1-only method.
+The [subsequent methodology audit](PREFIX_METHODOLOGY_AUDIT.md) found duplicate
+and shared CPU split instances and non-comparable regression risk sets. Those
+eight reduced-model runs cannot establish a prefix-loss effect.
 
 ## Recommendation
 

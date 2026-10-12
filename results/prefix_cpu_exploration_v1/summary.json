@@ -1,6 +1,14 @@
 {
   "schema": "ccb_prefix_cpu_exploration_v1",
   "status": "complete",
+  "methodology_audit": {
+    "date": "2026-10-12",
+    "valid_prefix_effect_comparison": false,
+    "train_unique_instances": 15,
+    "validation_unique_instances": 27,
+    "shared_train_validation_instances": 1,
+    "reason": "Repeated and overlapping instances; all models failed training trace fit; regression risk sets differ and weights change between compared iterations. Raw recorded scores are retained, but no stability or generalization conclusion is supported."
+  },
   "purpose": "reduced-model CPU diagnostic; not a benchmark",
   "steps_per_run": 400,
   "official_evaluation_used": false,

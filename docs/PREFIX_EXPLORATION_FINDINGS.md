@@ -4,6 +4,13 @@ Date: 2026-10-12. All new experiments used CPU. No GPU job submitted.
 
 ## Findings
 
+Audit correction: the eight-run CPU comparison had repeated and overlapping
+train/validation instances and no successful training trace fit. Its regression
+fractions use different risk sets under changing weights. It therefore cannot
+support a claim that prefix weighting improves stability or generalisation.
+The raw results are preserved with an explicit methodology audit. See
+[detailed audit](PREFIX_METHODOLOGY_AUDIT.md).
+
 The prefix hypothesis is implemented as an opt-in training ablation, but no
 successful generalisation result has been established. The important new
 finding is that a D1-specific learned executor reaches perfect performance on
@@ -66,8 +73,9 @@ There is no defensible novelty claim for this loss alone.
 
 ## Eight paired CPU runs
 
-16 fixed generated depth-3 training examples, 32 fresh depth-3 validation
-examples; seeds 7 and 17; width 32, one layer, H=1, L=1, ACT horizon 4, 400
+16 generated depth-3 training records (15 unique), 32 depth-3 validation records
+(27 unique, one shared with training); seeds 7 and 17; width 32, one layer,
+H=1, L=1, ACT horizon 4, 400
 updates, AdamW learning rate 0.003, no weight decay or warm-up, EMA 0.99.
 The weighted runs used alpha=beta=1. This is a reduced-model diagnostic,
 not the released-width TRM training recipe.
@@ -91,9 +99,12 @@ overstate ACT example exposure by four times in this controlled case.
 Regression denominators differ between methods. These are pooled online
 training comparisons across iterations, during changing model weights; they
 are not independent trials or frozen-model inference-stability estimates.
-The consistent direction is a small signal worth recording, not proof of a
-mechanism or a statistically established advantage. The short budget and small
-architecture cannot rule out the idea at released scale.
+The consistently smaller fractions do not establish a beneficial signal:
+both the numerator and denominator change, and absolute regression counts are
+higher for the weighted model in every pair. A fair comparison needs frozen
+models and a common externally specified probe/risk set. The short budget,
+small architecture, and failed training fit cannot rule out the idea at released
+scale or establish an effect.
 
 Canvas differences are also inconclusive: most runs underfit, so these tests
 cannot establish padding as the original failure's cause.
@@ -174,5 +185,8 @@ No confirmed publishable TRM improvement has been found in this investigation.
 The result is useful because it gives a cheap strong baseline, reliable
 instrumentation, and a concrete reason to avoid another unsupported GPU sweep.
 
-Reproduce: `PYTHONPATH=src python scripts/explore_prefix_cpu.py --steps 400`.
-Results: `results/prefix_cpu_exploration_v1/summary.json`.
+The original eight-run diagnostic is associated with commit `5a01e26`.
+Raw results: `results/prefix_cpu_exploration_v1/summary.json`.
+The corrected script uses unique/disjoint splits, stops when a baseline does
+not fit its training traces, and writes to `prefix_cpu_exploration_v2` so it
+cannot overwrite the original result by default.

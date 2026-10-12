@@ -18,6 +18,14 @@ from ccb.training import (
 
 
 class PrefixTests(unittest.TestCase):
+    def test_cpu_experiment_splits_are_unique_and_disjoint(self):
+        from scripts.explore_prefix_cpu import build_cpu_splits
+        train, validation, audit = build_cpu_splits()
+        self.assertEqual((len(train), len(validation)), (16,32))
+        self.assertEqual(audit['unique_instances'], {'train':16,'validation':32})
+        self.assertTrue(audit['instances_disjoint'])
+        self.assertTrue(audit['programs_disjoint'])
+
     def test_prefix_stops_at_first_error_and_ignores_padding(self):
         targets = torch.zeros(2, 4, 1, dtype=torch.long)
         predictions = torch.tensor([[[0], [0], [1], [0]], [[0], [0], [1], [1]]])

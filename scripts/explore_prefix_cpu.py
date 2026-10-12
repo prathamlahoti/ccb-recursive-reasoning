@@ -10,7 +10,7 @@ from pathlib import Path
 import torch
 from torch.nn import functional as F
 
-from ccb.dataset import OfficialEvaluationFirewall, SplitConfig, generate_firewalled_split, instance_fingerprint
+from ccb.dataset import OfficialEvaluationFirewall, SplitConfig, generate_firewalled_split, instance_fingerprint, audit_disjoint_splits
 from ccb.domains.alien_grid import AlienGridDomain
 from ccb.encoding import collate_episodes
 from ccb.models.grid_executor import LearnedGridExecutor
@@ -29,8 +29,7 @@ def run(steps: int, output: Path | None = None) -> dict:
     torch.set_num_threads(1)
     firewall = OfficialEvaluationFirewall.from_official_records('d1')
     domain = AlienGridDomain()
-    train = generate_firewalled_split(domain.generate, SplitConfig('cpu_train',(3,),16,91000000), firewall)
-    validation = generate_firewalled_split(domain.generate, SplitConfig('cpu_validation',(3,),32,92000000), firewall)
+    train, validation, split_audit = build_cpu_splits(firewall, domain)
     batch = collate_episodes(train)
     validation_batch = collate_episodes(validation)
     reports = []
@@ -57,9 +56,19 @@ def run(steps: int, output: Path | None = None) -> dict:
                     'regressed_prefix_states':sum(h.get('regressed_prefix_states',0) for h in history)})
                 print(json.dumps(reports[-1]), flush=True)
                 if output is not None:
-                    atomic_json(output, {'schema':'ccb_prefix_cpu_exploration_v1',
+                    atomic_json(output, {'schema':'ccb_prefix_cpu_exploration_v2',
                         'status':'running', 'trm_runs':reports,
                         'official_evaluation_used':False})
+                if weight == 0 and reports[-1]['train_ema']['trace_exact_accuracy'] < .99:
+                    # Establish learning in the actual reduced configuration
+                    # before spending on loss comparisons or interpreting them.
+                    return {'schema':'ccb_prefix_cpu_exploration_v2',
+                        'status':'baseline_fit_gate_failed',
+                        'purpose':'CPU fit-path diagnostic; prefix hypothesis not tested',
+                        'prefix_comparison_eligible':False, 'split_audit':split_audit,
+                        'trm_runs':reports, 'official_evaluation_used':False,
+                        'train_instance_hashes':[instance_fingerprint(e) for e in train],
+                        'validation_instance_hashes':[instance_fingerprint(e) for e in validation]}
     # Strong, explicitly D1-specific learned baseline. No operation mapping is
     # hard-coded: infer source-cell indices from one-step training targets.
     seed_everything(3)
@@ -85,7 +94,8 @@ def run(steps: int, output: Path | None = None) -> dict:
     for depth in (5,20,50):
         layout = build_ccb_trm_layout(batch.codec,depth)
         coverage.append({'canvas_depth':depth,'tokens':layout.sequence_length})
-    return {'schema':'ccb_prefix_cpu_exploration_v1','status':'complete',
+    return {'schema':'ccb_prefix_cpu_exploration_v2','status':'complete',
+        'split_audit':split_audit,
         'purpose':'reduced-model CPU diagnostic; not a benchmark',
         'steps_per_run':steps,'official_evaluation_used':False,'train_examples':16,'train_depth':3,
         'train_instance_hashes':[instance_fingerprint(e) for e in train],
@@ -98,10 +108,26 @@ def run(steps: int, output: Path | None = None) -> dict:
             'scope':'D1-specific permutation inductive bias; randomized-start generated test instances'}}
 
 
+def build_cpu_splits(firewall=None, domain=None):
+    firewall = firewall or OfficialEvaluationFirewall.from_official_records('d1')
+    domain = domain or AlienGridDomain()
+    seen: set[str] = set()
+    train = generate_firewalled_split(domain.generate,
+        SplitConfig('cpu_train',(3,),16,91000000),firewall,forbidden_instances=seen)
+    validation = generate_firewalled_split(domain.generate,
+        SplitConfig('cpu_validation',(3,),32,92000000),firewall,forbidden_instances=seen)
+    audit = audit_disjoint_splits({'train':train,'validation':validation})
+    unique = {'train':len({instance_fingerprint(e) for e in train}),
+              'validation':len({instance_fingerprint(e) for e in validation})}
+    if unique != {'train':16,'validation':32} or not audit['instances_disjoint'] or not audit['programs_disjoint']:
+        raise RuntimeError('CPU experiment splits contain repeated or shared examples')
+    return train, validation, {**audit, 'unique_instances':unique}
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--steps',type=int,default=400)
-    parser.add_argument('--output',type=Path,default=Path('results/prefix_cpu_exploration_v1/summary.json'))
+    parser.add_argument('--output',type=Path,default=Path('results/prefix_cpu_exploration_v2/summary.json'))
     args = parser.parse_args()
     if args.steps < 1:
         parser.error('steps must be positive')
